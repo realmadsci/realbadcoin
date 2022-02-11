@@ -1,6 +1,4 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
-
-},{}],2:[function(require,module,exports){
 "use strict";
 
 function _typeof(obj) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == _typeof(Symbol.iterator) ? function (obj) { return typeof obj === "undefined" ? "undefined" : _typeof(obj); } : function (obj) { return obj && "function" == typeof Symbol && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj === "undefined" ? "undefined" : _typeof(obj); }, _typeof(obj); }
@@ -25,10 +23,7 @@ function asyncGeneratorStep(gen, resolve, reject, _next, _throw, key, arg) { try
 
 function _asyncToGenerator(fn) { return function () { var self = this, args = arguments; return new Promise(function (resolve, reject) { var gen = fn.apply(self, args); function _next(value) { asyncGeneratorStep(gen, resolve, reject, _next, _throw, "next", value); } function _throw(err) { asyncGeneratorStep(gen, resolve, reject, _next, _throw, "throw", err); } _next(undefined); }); }; }
 
-console.log((0, _sha2.default)(new Uint8Array([1, 2, 3]))); // small utility method that converts bytes to hex
-
-console.log((0, _utils.bytesToHex)((0, _sha2.default)('abc'))); /////////////////////////////////// secp256k1 signatures!
-
+/////////////////////////////////// secp256k1 signatures!
 // If you're using single file, use global variable instead:
 // nobleSecp256k1
 _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee() {
@@ -89,7 +84,12 @@ _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee() {
       }
     }
   }, _callee, this);
-}))(); /////////////////////////////////// peerjs!
+}))(); /////////////////////////////////// sha256 hashes!
+
+
+console.log((0, _sha2.default)(new Uint8Array([1, 2, 3]))); // small utility method that converts bytes to hex
+
+console.log((0, _utils.bytesToHex)((0, _sha2.default)('abc'))); /////////////////////////////////// peerjs!
 //DOESN'T browserify yet!!!!????!?!?
 //import Peer from 'peerjs';
 //const Peer = require('peerjs');
@@ -119,7 +119,7 @@ _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee() {
 //
 //console.log(output);
 
-},{"@noble/hashes/sha256":5,"@noble/hashes/utils":6,"@noble/secp256k1":7}],3:[function(require,module,exports){
+},{"@noble/hashes/sha256":4,"@noble/hashes/utils":5,"@noble/secp256k1":6}],2:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SHA2 = void 0;
@@ -235,7 +235,7 @@ class SHA2 extends utils_js_1.Hash {
 }
 exports.SHA2 = SHA2;
 
-},{"./utils.js":6}],4:[function(require,module,exports){
+},{"./utils.js":5}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.crypto = void 0;
@@ -244,7 +244,7 @@ exports.crypto = {
     web: typeof self === 'object' && 'crypto' in self ? self.crypto : undefined,
 };
 
-},{}],5:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sha256 = void 0;
@@ -356,7 +356,7 @@ class SHA256 extends _sha2_js_1.SHA2 {
  */
 exports.sha256 = (0, utils_js_1.wrapConstructor)(() => new SHA256());
 
-},{"./_sha2.js":3,"./utils.js":6}],6:[function(require,module,exports){
+},{"./_sha2.js":2,"./utils.js":5}],5:[function(require,module,exports){
 "use strict";
 /*! noble-hashes - MIT License (c) 2022 Paul Miller (paulmillr.com) */
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -553,7 +553,7 @@ function randomBytes(bytesLength = 32) {
 }
 exports.randomBytes = randomBytes;
 
-},{"@noble/hashes/crypto":4}],7:[function(require,module,exports){
+},{"@noble/hashes/crypto":3}],6:[function(require,module,exports){
 "use strict";
 /*! noble-secp256k1 - MIT License (c) 2019 Paul Miller (paulmillr.com) */
 var __importDefault = (this && this.__importDefault) || function (mod) {
@@ -1607,4 +1607,6 @@ exports.utils = {
     },
 };
 
-},{"crypto":1}]},{},[2]);
+},{"crypto":7}],7:[function(require,module,exports){
+
+},{}]},{},[1]);
