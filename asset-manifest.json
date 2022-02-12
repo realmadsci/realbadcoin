@@ -1,16 +1,16 @@
 {
   "files": {
-    "main.css": "/realbadcoin/static/css/main.b53323c7.css",
-    "main.js": "/realbadcoin/static/js/main.6214f063.js",
-    "static/js/787.658537bf.chunk.js": "/realbadcoin/static/js/787.658537bf.chunk.js",
+    "main.css": "/realbadcoin/static/css/main.fe326497.css",
+    "main.js": "/realbadcoin/static/js/main.f65894b6.js",
+    "static/js/787.f87878b9.chunk.js": "/realbadcoin/static/js/787.f87878b9.chunk.js",
     "static/media/logo.svg": "/realbadcoin/static/media/logo.6ce24c58023cc2f8fd88fe9d219db6c6.svg",
     "index.html": "/realbadcoin/index.html",
-    "main.b53323c7.css.map": "/realbadcoin/static/css/main.b53323c7.css.map",
-    "main.6214f063.js.map": "/realbadcoin/static/js/main.6214f063.js.map",
-    "787.658537bf.chunk.js.map": "/realbadcoin/static/js/787.658537bf.chunk.js.map"
+    "main.fe326497.css.map": "/realbadcoin/static/css/main.fe326497.css.map",
+    "main.f65894b6.js.map": "/realbadcoin/static/js/main.f65894b6.js.map",
+    "787.f87878b9.chunk.js.map": "/realbadcoin/static/js/787.f87878b9.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.b53323c7.css",
-    "static/js/main.6214f063.js"
+    "static/css/main.fe326497.css",
+    "static/js/main.f65894b6.js"
   ]
 }

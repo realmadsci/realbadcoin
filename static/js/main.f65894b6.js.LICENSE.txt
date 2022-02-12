@@ -4,6 +4,10 @@ object-assign
 @license MIT
 */
 
+/*! noble-ed25519 - MIT License (c) 2019 Paul Miller (paulmillr.com) */
+
+/*! noble-secp256k1 - MIT License (c) 2019 Paul Miller (paulmillr.com) */
+
 /** @license React v0.20.2
  * scheduler.production.min.js
  *
