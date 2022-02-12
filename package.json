@@ -2,8 +2,12 @@
   "name": "realbadcoin",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://realmadsci.github.io/realbadcoin/",
   "dependencies": {
-    "@testing-library/jest-dom": "^5.16.2",
+    "@noble/bls12-381": "^1.1.2",
+    "@noble/ed25519": "^1.5.0",
+    "@noble/hashes": "^1.0.0",
+    "@noble/secp256k1": "^1.5.0",    "@testing-library/jest-dom": "^5.16.2",
     "@testing-library/react": "^12.1.2",
     "@testing-library/user-event": "^13.5.0",
     "react": "^17.0.2",
@@ -13,6 +17,8 @@
   },
   "scripts": {
     "start": "react-scripts start",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
@@ -34,5 +40,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "gh-pages": "^3.2.3"
   }
 }

@@ -11,3 +11,9 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* paulmillr.github.io base styles */
+.curve-selector { padding-right: 1rem; }
+.curve-selector > label { padding-left: 0.25rem; }
+.curve-data code { line-break: anywhere; }
+.curve-data td:first-child { width: 5rem; }
