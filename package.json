@@ -2,7 +2,7 @@
   "name": "realbadcoin",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://realmadsci.github.io/realbadcoin/",
+  "homepage": "https://coin.realmadsci.com",
   "dependencies": {
     "@noble/bls12-381": "^1.1.2",
     "@noble/ed25519": "^1.5.0",
@@ -10,9 +10,12 @@
     "@noble/secp256k1": "^1.5.0",    "@testing-library/jest-dom": "^5.16.2",
     "@testing-library/react": "^12.1.2",
     "@testing-library/user-event": "^13.5.0",
+    "json-stringify-deterministic": "^1.0.2",
+    "peerjs": "^1.3.2",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
     "react-scripts": "5.0.0",
+    "sort-keys-recursive": "^2.1.2",
     "web-vitals": "^2.1.4"
   },
   "scripts": {

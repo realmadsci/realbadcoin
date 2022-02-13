@@ -9,7 +9,7 @@ and then run `nvm install lts` followed by `nvm use ????` (whatever the version 
 * This was created using create-react-app (`npx create-react-app realbadcoin`) as the initial template.
 * It is also using gh-pages to deploy (Installed via `npm install gh-pages --save-dev`, and used via script for `npm run deploy`).
 
-For local testing, use `npm run start`. (Note: You don't need any firewall ports open to test locally!)
+For local testing, use `npm install --save` followed by `npm run start`. (Note: You don't need any firewall ports open to test locally!)
 
 ```bash
 # Install deps

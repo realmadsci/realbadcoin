@@ -13,13 +13,16 @@ import * as bls from '@noble/bls12-381';
 import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils';
 
+// Peer-to-peer comms using peerjs
+import Peer from 'peerjs';
 
-ReactDOM.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-  document.getElementById('root')
-);
+
+//ReactDOM.render(
+//  <React.StrictMode>
+//    <App />
+//  </React.StrictMode>,
+//  document.getElementById('root')
+//);
 
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))
@@ -35,7 +38,6 @@ reportWebVitals();
 
 
 function pad(n, length = 64, base = 16) {
-  console.log("Padding " + n)
   //return n.toString(base).padStart(length, '0');
   return n.toString();
 }
@@ -356,4 +358,106 @@ class EccApp extends React.Component {
 
 document.addEventListener('DOMContentLoaded', function () {
   ReactDOM.render(<EccApp />, document.querySelector('.ecc-calculator-container'));
+});
+
+
+
+
+// Peer-to-peer comms using peerjs
+class PeerApp extends React.Component {
+
+  state = {
+    myId: '',
+    friendId: '',
+    peer: {},
+    message: '',
+    messages: []
+  }
+
+  componentDidMount() {
+    const peer = new Peer('', {
+      host: 'coinpeers.realmadsci.com',
+      port: 8080,
+      path: '/',
+      secure: true
+    });
+
+    peer.on('open', (id) => {
+      this.setState({
+        myId: id,
+        peer: peer
+      });
+    });
+
+    peer.on('connection', (conn) => {
+      conn.on('data', (data) => {
+        this.setState({
+          messages: [...this.state.messages, data]
+        });
+      });
+    });
+  }
+
+  send = () => {
+    const conn = this.state.peer.connect(this.state.friendId);
+
+    conn.on('open', () => {
+
+      const msgObj = {
+        sender: this.state.myId,
+        message: this.state.message
+      };
+
+      conn.send(msgObj);
+
+      this.setState({
+        messages: [...this.state.messages, msgObj],
+        message: ''
+      });
+
+    });
+  }
+
+  render() {
+    return (
+      <div className="wrapper">
+        <div className="col">
+          <h1>My ID: {this.state.myId}</h1>
+
+          <label>Friend ID:</label>
+          <input
+            type="text"
+            value={this.state.friendId}
+            onChange={e => { this.setState({ friendId: e.target.value }); }} />
+
+          <br />
+          <br />
+
+          <label>Message:</label>
+          <input
+            type="text"
+            value={this.state.message}
+            onChange={e => { this.setState({ message: e.target.value }); }} />
+          <button onClick={this.send}>Send</button>
+
+          {
+            this.state.messages.map((message, i) => {
+              return (
+                <div key={i}>
+                  <h3>{message.sender}:</h3>
+                  <p>{message.message}</p>
+                </div>
+
+              )
+            })
+          }
+        </div>
+      </div>
+    );
+  }
+}
+
+
+document.addEventListener('DOMContentLoaded', function () {
+  ReactDOM.render(<PeerApp />, document.querySelector('.peer-container'));
 });
