@@ -379,7 +379,8 @@ class PeerApp extends React.Component {
       host: 'coinpeers.realmadsci.com',
       port: 8080,
       path: '/',
-      secure: true
+      secure: true,
+      debug: 3
     });
 
     peer.on('open', (id) => {
@@ -390,25 +391,35 @@ class PeerApp extends React.Component {
     });
 
     peer.on('connection', (conn) => {
+      console.log("I got connection. Reliable = " + conn.reliable);
+
       conn.on('data', (data) => {
         this.setState({
           messages: [...this.state.messages, data]
         });
       });
     });
+
+    peer.on('disconnected', () => {
+      console.log("Got disconnected. Trying to reconnect!");
+      this.state.peer.reconnect();
+    });
   }
 
   send = () => {
-    const conn = this.state.peer.connect(this.state.friendId);
+    const conn = this.state.peer.connect(this.state.friendId, {reliable: true});
 
     conn.on('open', () => {
+      console.log("I opened a connection. Reliable = " + conn.reliable);
 
       const msgObj = {
         sender: this.state.myId,
         message: this.state.message
       };
 
+      console.log("I'm going to send. I'll let you know how it goes! msg = " + msgObj);
       conn.send(msgObj);
+      console.log("Sent!");
 
       this.setState({
         messages: [...this.state.messages, msgObj],
@@ -416,6 +427,15 @@ class PeerApp extends React.Component {
       });
 
     });
+
+    conn.on('close', () => {
+      console.log("The connection to " + conn.peer + " is closed!");
+    });
+
+    conn.on('error', (err) => {
+      console.log("Got error = " + err);
+    });
+
   }
 
   render() {
