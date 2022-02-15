@@ -16,6 +16,8 @@ import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils';
 // Peer-to-peer comms using peerjs
 import Peer from 'peerjs';
 
+// Random slug generator to simplify connection to server
+const { generateSlug } = require("random-word-slugs");
 
 //ReactDOM.render(
 //  <React.StrictMode>
@@ -363,6 +365,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
 
+
 // Peer-to-peer comms using peerjs
 class PeerApp extends React.Component {
 
@@ -375,12 +378,15 @@ class PeerApp extends React.Component {
   }
 
   componentDidMount() {
-    const peer = new Peer('', {
-      host: 'coinpeers.realmadsci.com',
-      port: 8080,
-      path: '/',
+    //https://anseki.github.io/gnirts/
+    const a=(388).toString(36).toLowerCase()+(function(){var Z=Array.prototype.slice.call(arguments),H=Z.shift();return Z.reverse().map(function(Q,P){return String.fromCharCode(Q-H-7-P)}).join('')})(29,140,147,144,144)+(28210).toString(36).toLowerCase()+(1203767).toString(36).toLowerCase().split('').map(function(r){return String.fromCharCode(r.charCodeAt()+(-39))}).join('')+(596).toString(36).toLowerCase()+(function(){var o=Array.prototype.slice.call(arguments),i=o.shift();return o.reverse().map(function(L,H){return String.fromCharCode(L-i-38-H)}).join('')})(0,101,104,101,99,97,151,149,151,151,157,154,147,147)+(7482579).toString(36).toLowerCase()+(function(){var L=Array.prototype.slice.call(arguments),w=L.shift();return L.reverse().map(function(c,N){return String.fromCharCode(c-w-39-N)}).join('')})(4,153,146);
+    const peer = new Peer(generateSlug(2), {
       secure: true,
-      debug: 3
+      debug: 3,
+      config: {'iceServers': [
+        { url: 'stun:coinpeers.realmadsci.com'},
+        { url: 'turn:coinpeers.realmadsci.com', username: 'coin', credential: a}
+      ]}
     });
 
     peer.on('open', (id) => {
