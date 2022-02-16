@@ -10,6 +10,7 @@ import reportWebVitals from './reportWebVitals';
 import * as ed from '@noble/ed25519';
 import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils';
+import { Spoiler } from './react-spoiler';
 
 // Peer-to-peer comms using peerjs
 import Peer from 'peerjs';
@@ -39,11 +40,9 @@ class Signer extends React.Component {
   constructor() {
     super();
     this.state = {
-      hex: '',
-      x: '',
-      y: '',
-      z: '',
-      signature: '',
+      pubKeyHex: '',
+      msgHex: '',
+      sigHex: '',
     };
   }
   componentDidMount() {
@@ -68,13 +67,12 @@ class Signer extends React.Component {
 class EdSigner extends Signer {
   async getPublicKey() {
     const pub = ed.Point.fromHex(await ed.getPublicKey(this.props.privKey));
-    const [x, y] = [pub.x, pub.y].map((n) => pad(n));
-    return { hex: pub.toHex(), x, y };
+    return { pubKeyHex: pub.toHex() };
   }
   async sign() {
     const msg = utf8ToBytes(this.props.message);
     const sig = ed.Signature.fromHex(await ed.sign(msg, this.props.privKey));
-    return { msg: bytesToHex(msg), sigHex: sig.toHex() };
+    return { msgHex: bytesToHex(msg), sigHex: sig.toHex() };
   }
   // prettier-ignore
   renderPoint() {
@@ -83,13 +81,13 @@ class EdSigner extends Signer {
         <h3>Public key</h3>
         <table>
           <tbody>
-            <tr><td>hex</td><td><code>{this.state.hex}</code></td></tr>
+            <tr><td>hex</td><td><code>{this.state.pubKeyHex}</code></td></tr>
           </tbody>
         </table>
         <h3>Signature</h3>
         <table>
           <tbody>
-            <tr><td>msg</td><td><code>{this.state.msg}</code></td></tr>
+            <tr><td>msg</td><td><code>{this.state.msgHex}</code></td></tr>
             <tr><td>sigHex</td><td><code>{this.state.sigHex}</code></td></tr>
           </tbody>
         </table>
@@ -99,89 +97,42 @@ class EdSigner extends Signer {
 }
 
 
-const signers = [
-  { name: 'ed25519', hash: 'sha256', cls: EdSigner },
-];
-
 class EccApp extends React.Component {
   constructor() {
     super();
+
+    let privKey = localStorage.getItem("private_key");
+    if (privKey === null) {
+      // We don't already have a private key for this browser, so make one:
+      const array = window.crypto.getRandomValues(new Uint8Array(32));
+      privKey = bytesToHex(array);
+      localStorage.setItem("private_key", privKey);
+    }
+
     this.state = {
-      privKey: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-      message: 'greetings from noble',
-      curve: signers[0],
+      privKey: privKey,
+      message: 'hello world',
+      curve: EdSigner,
     };
   }
 
-  setPrivateKey(value) {
-    this.setState({ privKey: value });
-  }
-
-  generateRandomPrivateKey() {
-    const array = window.crypto.getRandomValues(new Uint8Array(32));
-    this.setPrivateKey(bytesToHex(array));
-  }
-
-  onKeyChange(event) {
-    const padded = event.target.value.padStart(64, '0');
-    if (/[\daAbBcCdDeEfFxX]{0,66}/.test(padded)) {
-      this.setPrivateKey(padded);
-    }
-  }
   onMsgChange(event) {
     const message = event.target.value;
     if (message.length > 0) this.setState({ message });
   }
 
-  selectCurve(curve) {
-    this.setState({ curve });
-  }
-
   render() {
-    const radios = signers.map((s, i) => {
-      const index = `curve-${i}`;
-      return (
-        <span className="curve-selector" key={index}>
-          <input
-            type="radio"
-            name="curve"
-            value={s.name}
-            id={index}
-            onChange={this.selectCurve.bind(this, s)}
-            checked={s.name === this.state.curve.name}
-          />
-          <label htmlFor={index}>{s.name}</label>
-        </span>
-      );
-    });
     return (
       <div>
         <div>
-          <div>
-            <label htmlFor="private-key">
-              <strong>Private key in hex format</strong>
-            </label>{' '}
-            <button type="button" onClick={this.generateRandomPrivateKey.bind(this)}>
-              Random
-            </button>
-          </div>
-          <div>
-            <input
-              id="private-key"
-              type="text"
-              size="66"
-              maxLength="66"
-              value={this.state.privKey}
-              pattern="[\daAbBcCdDeEfFxX]{0,66}"
-              onBlur={this.onKeyChange.bind(this)}
-              readOnly="1"
-            />
-          </div>
+          <label htmlFor="private-key">
+            <strong>Private key</strong>
+          </label>
+          <Spoiler>{this.state.privKey}</Spoiler>
         </div>
         <div>
           <label htmlFor="message-to-sign">
             <strong>Message to sign</strong>
-            <small style={{ color: 'gray' }}> (will be hashed with {this.state.curve.hash} for ecdsa/bls12)</small>
           </label>
         </div>
         <div>
@@ -195,14 +146,8 @@ class EccApp extends React.Component {
             onKeyUp={this.onMsgChange.bind(this)}
           />
         </div>
-        <div>
-          <div>
-            <strong>Elliptic curve</strong>
-          </div>
-          {radios}
-        </div>
         <div className="selected-curve">
-          {<this.state.curve.cls privKey={this.state.privKey} message={this.state.message} />}
+          {<this.state.curve privKey={this.state.privKey} message={this.state.message} />}
         </div>
       </div>
     );
