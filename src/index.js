@@ -7,9 +7,7 @@ import reportWebVitals from './reportWebVitals';
 // Imports from paulmillr.github.io demo:
 //import React from 'react';
 //import ReactDOM from 'react-dom';
-import * as secp from '@noble/secp256k1';
 import * as ed from '@noble/ed25519';
-import * as bls from '@noble/bls12-381';
 import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils';
 
@@ -30,13 +28,6 @@ const { generateSlug } = require("random-word-slugs");
 // to log results (for example: reportWebVitals(console.log))
 // or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
 reportWebVitals();
-
-
-
-
-
-
-
 
 
 function pad(n, length = 64, base = 16) {
@@ -74,95 +65,6 @@ class Signer extends React.Component {
   }
 }
 
-class SecpSigner extends Signer {
-  async getPublicKey() {
-    const hex = secp.getPublicKey(this.props.privKey, true);
-    const pub = secp.Point.fromHex(hex);
-    const [x, y] = [pub.x, pub.y].map((n) => pad(n));
-    return { hex33: pub.toHex(true), hex64: pub.toHex(false), x, y };
-  }
-  async sign() {
-    const msgHash = sha256(this.props.message);
-    const sigHash = await secp.sign(msgHash, this.props.privKey, { canonical: true });
-    const sig = secp.Signature.fromDER(sigHash);
-    const [r, s] = [sig.r, sig.s].map((n) => pad(n));
-    return {
-      compactSig: sig.toCompactHex(),
-      derSig: sig.toDERHex(),
-      msgHash: bytesToHex(msgHash),
-      r,
-      s,
-    };
-  }
-  // prettier-ignore
-  renderPoint() {
-    return (
-      <div className="curve-data">
-        <h3>Public key</h3>
-        <table>
-          <tbody>
-            <tr><td>x</td><td><code>{this.state.x}</code></td></tr>
-            <tr><td>y</td><td><code>{this.state.y}</code></td></tr>
-            <tr><td>33b hex</td><td><code>{this.state.hex33}</code></td></tr>
-            <tr><td>64b hex</td><td><code>{this.state.hex64}</code></td></tr>
-          </tbody>
-        </table>
-        <h3>Signature</h3>
-        <table>
-          <tbody>
-            <tr><td>msgHash</td><td><code>{this.state.msgHash}</code></td></tr>
-            <tr><td>r</td><td><code>{this.state.r}</code></td></tr>
-            <tr><td>s</td><td><code>{this.state.s}</code></td></tr>
-            <tr><td>compact</td><td><code>{this.state.compactSig}</code></td></tr>
-            <tr><td>der</td><td><code>{this.state.derSig}</code></td></tr>
-          </tbody>
-        </table>
-      </div>
-    );
-  }
-}
-
-class SecpSchnorrSigner extends Signer {
-  async getPublicKey() {
-    const pub = secp.Point.fromHex(secp.schnorr.getPublicKey(this.props.privKey));
-    const [x, y] = [pub.x, pub.y].map((n) => pad(n));
-    return { hex: pub.toHex(), x, y };
-  }
-  async sign() {
-    const msg = utf8ToBytes(this.props.message);
-    const auxRand = secp.utils.randomBytes();
-    const _sig = (await secp.schnorr.sign(msg, this.props.privKey, auxRand));
-    const sig = secp.schnorr.Signature.fromHex(_sig);
-    const [r, s] = [sig.r, sig.s].map((n) => pad(n));
-    return { msg: bytesToHex(msg), auxRand: bytesToHex(auxRand), r, s, sigHex: sig.toHex() };
-  }
-  // prettier-ignore
-  renderPoint() {
-    return (
-      <div className="curve-data">
-        <h3>Public key</h3>
-        <table>
-          <tbody>
-            <tr><td>x</td><td><code>{this.state.x}</code></td></tr>
-            <tr><td>y</td><td><code>{this.state.y}</code></td></tr>
-            <tr><td>hex</td><td><code>{this.state.hex}</code></td></tr>
-          </tbody>
-        </table>
-        <h3>Signature</h3>
-        <table>
-          <tbody>
-            <tr><td>msg</td><td><code>{this.state.msg}</code></td></tr>
-            <tr><td>auxRand</td><td><code>{this.state.auxRand}</code></td></tr>
-            <tr><td>r</td><td><code>{this.state.r}</code></td></tr>
-            <tr><td>s</td><td><code>{this.state.s}</code></td></tr>
-            <tr><td>sigHex</td><td><code>{this.state.sigHex}</code></td></tr>
-          </tbody>
-        </table>
-      </div>
-    );
-  }
-}
-
 class EdSigner extends Signer {
   async getPublicKey() {
     const pub = ed.Point.fromHex(await ed.getPublicKey(this.props.privKey));
@@ -172,8 +74,7 @@ class EdSigner extends Signer {
   async sign() {
     const msg = utf8ToBytes(this.props.message);
     const sig = ed.Signature.fromHex(await ed.sign(msg, this.props.privKey));
-    const [rx, ry, s] = [sig.r.x, sig.r.y, sig.s].map((n) => pad(n));
-    return { msg: bytesToHex(msg), rx, ry, s, sigHex: sig.toHex() };
+    return { msg: bytesToHex(msg), sigHex: sig.toHex() };
   }
   // prettier-ignore
   renderPoint() {
@@ -182,8 +83,6 @@ class EdSigner extends Signer {
         <h3>Public key</h3>
         <table>
           <tbody>
-            <tr><td>x</td><td><code>{this.state.x}</code></td></tr>
-            <tr><td>y</td><td><code>{this.state.y}</code></td></tr>
             <tr><td>hex</td><td><code>{this.state.hex}</code></td></tr>
           </tbody>
         </table>
@@ -191,9 +90,6 @@ class EdSigner extends Signer {
         <table>
           <tbody>
             <tr><td>msg</td><td><code>{this.state.msg}</code></td></tr>
-            <tr><td>r.x</td><td><code>{this.state.rx}</code></td></tr>
-            <tr><td>r.y</td><td><code>{this.state.ry}</code></td></tr>
-            <tr><td>s</td><td><code>{this.state.s}</code></td></tr>
             <tr><td>sigHex</td><td><code>{this.state.sigHex}</code></td></tr>
           </tbody>
         </table>
@@ -202,54 +98,9 @@ class EdSigner extends Signer {
   }
 }
 
-class BlsSigner extends Signer {
-  async getPublicKey() {
-    const hex = bls.getPublicKey(this.props.privKey);
-    const pub = bls.PointG1.fromHex(hex);
-    const [x, y, z] = [pub.x, pub.y, pub.z].map((n) => pad(n.value));
-    return { hex, x, y, z };
-  }
-  async sign() {
-    const msgHash = sha256(this.props.message);
-    const sigHex = await bls.sign(msgHash, this.props.privKey);
-    const sig = bls.PointG2.fromSignature(sigHex);
-    const [sigX, sigXi, sigY, sigYi] = [sig.x.c[0], sig.x.c[1], sig.y.c[0], sig.y.c[0]].map((n) => {
-      return pad(n.value, 96);
-    });
-    return { msgHash: bytesToHex(msgHash), sigX, sigXi, sigY, sigYi, sigHex: bytesToHex(sigHex) };
-  }
-  // prettier-ignore
-  renderPoint() {
-    return (
-      <div className="curve-data">
-        <h3>Public key G1</h3>
-        <table>
-          <tbody>
-            <tr><td>x</td><td><code>{this.state.x}</code></td></tr>
-            <tr><td>y</td><td><code>{this.state.y}</code></td></tr>
-            <tr><td>hex</td><td><code>{this.state.hex}</code></td></tr>
-          </tbody>
-        </table>
-        <h3>Signature G2</h3>
-        <p><small>bls consists of two curves: G1 (ordinary) and G2 (complex numbers). Most implementations use G1 for pubkeys and G2 for signatures. So, signatures will coordinates in form of <code>(x₀, x₁×i), (y₀, y₁×i)</code></small></p>
-        <table>
-          <tbody>
-            <tr><td>msgHash</td><td><code>{this.state.msgHash}</code></td></tr>
-            <tr><td>x</td><td><code>{this.state.sigX}</code> +<br/><code>{this.state.sigXi}×i</code></td></tr>
-            <tr><td>y</td><td><code>{this.state.sigY}</code> +<br/><code>{this.state.sigYi}×i</code></td></tr>
-            <tr><td>sigHex</td><td><code>{this.state.sigHex}</code></td></tr>
-          </tbody>
-        </table>
-      </div>
-    );
-  }
-}
 
 const signers = [
-  { name: 'secp256k1 ecdsa', hash: 'sha256', cls: SecpSigner },
-  { name: 'secp256k1 schnorr', hash: 'sha256', cls: SecpSchnorrSigner },
   { name: 'ed25519', hash: 'sha256', cls: EdSigner },
-  { name: 'bls12-381', hash: 'sha256', cls: BlsSigner },
 ];
 
 class EccApp extends React.Component {
