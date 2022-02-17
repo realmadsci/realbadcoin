@@ -12,6 +12,16 @@ code {
     monospace;
 }
 
+/* Ugly formatting to help identify components. Replace ASAP! */
+dt {
+  color:blue;
+}
+
+dd {
+  color:purple;
+}
+
+
 /* paulmillr.github.io base styles */
 .curve-selector { padding-right: 1rem; }
 .curve-selector > label { padding-left: 0.25rem; }

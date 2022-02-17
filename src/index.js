@@ -92,18 +92,18 @@ class EdSigner extends Signer {
     return (
       <div className="curve-data">
         <h3>Public key</h3>
-        <table>
-          <tbody>
-            <tr><td>hex</td><td><code>{this.state.pubKeyHex}</code></td></tr>
-          </tbody>
-        </table>
+        <dl>
+          <dt>hex</dt>
+          <dd>{this.state.pubKeyHex}</dd>
+        </dl>
+
         <h3>Signature</h3>
-        <table>
-          <tbody>
-            <tr><td>msg</td><td><code>{this.state.msgHex}</code></td></tr>
-            <tr><td>sigHex</td><td><code>{this.state.sigHex}</code></td></tr>
-          </tbody>
-        </table>
+        <dl>
+          <dt>msg</dt>
+          <dd>{this.state.msgHex}</dd>
+          <dt>sigHex</dt>
+          <dd>{this.state.sigHex}</dd>
+        </dl>
       </div>
     );
   }
@@ -239,7 +239,7 @@ class PeerApp extends React.Component {
       console.log("Sent!");
 
       this.setState({
-        messages: [...this.state.messages, msgObj],
+        messages: [msgObj, ...this.state.messages],
         message: ''
       });
 
@@ -277,17 +277,18 @@ class PeerApp extends React.Component {
             onChange={e => { this.setState({ message: e.target.value }); }} />
           <button onClick={this.send}>Send</button>
 
+          <dl>
           {
             this.state.messages.map((message, i) => {
               return (
-                <div key={i}>
-                  <h3>{message.sender}:</h3>
-                  <p>{message.message}</p>
-                </div>
-
+                <>
+                <dt>{message.sender}</dt>
+                <dd>{message.message}</dd>
+                </>
               )
             })
           }
+          </dl>
         </div>
       </div>
     );
