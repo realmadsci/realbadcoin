@@ -9,11 +9,13 @@ import reportWebVitals from './reportWebVitals';
 //import ReactDOM from 'react-dom';
 import * as ed from '@noble/ed25519';
 import { sha256 } from '@noble/hashes/sha256';
-import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils';
+import { bytesToHex, Hash, utf8ToBytes } from '@noble/hashes/utils';
 import { Spoiler } from './react-spoiler';
 
 // Peer-to-peer comms using peerjs
 import Peer from 'peerjs';
+
+import * as Comlink from 'comlink';
 
 // Random slug generator to simplify connection to server
 const { generateSlug } = require("random-word-slugs");
@@ -36,6 +38,8 @@ function pad(n, length = 64, base = 16) {
   return n.toString();
 }
 
+const HashWorker = Comlink.wrap(new Worker(new URL("./util/HashWorker.js", import.meta.url)));
+
 class Signer extends React.Component {
   constructor() {
     super();
@@ -43,11 +47,17 @@ class Signer extends React.Component {
       pubKeyHex: '',
       msgHex: '',
       sigHex: '',
+      hasher: null,
     };
   }
   componentDidMount() {
     this.getPublicKey().then((obj) => this.setState(obj));
-    this.sign().then((sig) => this.setState(sig));
+    (new HashWorker(0)).then(h=>{
+      this.setState({hasher: h});
+
+      // NOTE: We need the hashworker before we can start the signing process!
+      this.sign().then((sig) => this.setState(sig));
+    });
   }
   componentDidUpdate(prevProps) {
     if (this.props.privKey !== prevProps.privKey) {
@@ -72,6 +82,9 @@ class EdSigner extends Signer {
   async sign() {
     const msg = utf8ToBytes(this.props.message);
     const sig = ed.Signature.fromHex(await ed.sign(msg, this.props.privKey));
+    // Do some busy work here to compute the sig
+    await this.state.hasher.increment(100000000);
+    console.log("Count = " + await this.state.hasher.counter);
     return { msgHex: bytesToHex(msg), sigHex: sig.toHex() };
   }
   // prettier-ignore
