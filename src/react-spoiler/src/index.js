@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import Button from '@mui/material/Button';
 
 export class Spoiler extends Component {
   constructor(props) {
@@ -25,13 +26,13 @@ export class Spoiler extends Component {
         }`
       } {...this.props}>
         {this.state.show ? this.props.children : (
-          <button className={
+          <Button variant="contained" className={
               `${this.props.buttonClassName} react-spoiler-button ${
                 this.state.show ? 'react-spoiler-shown' : 'react-spoiler-hidden'
               }`
           } onClick={this.toggle}>
             { this.props.hiddenText || 'Click to show' }
-          </button>
+          </Button>
         )}
       </Tag>
     )

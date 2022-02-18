@@ -1,5 +1,10 @@
 // Peer-to-peer comms using peerjs
 import * as React from 'react';
+import AccountCircle from '@mui/icons-material/AccountCircle';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import InputAdornment from '@mui/material/InputAdornment';
+import TextField from '@mui/material/TextField';
 
 import Peer from 'peerjs';
 
@@ -94,22 +99,36 @@ class PeerApp extends React.Component {
                 <div className="col">
                     <h1>My ID: {this.state.myId}</h1>
 
-                    <label>Friend ID:</label>
-                    <input
-                        type="text"
-                        value={this.state.friendId}
-                        onChange={e => { this.setState({ friendId: e.target.value }); }} />
+                    <Box
+                        component="form"
+                        sx={{
+                            '& > :not(style)': { m: 1, width: '25ch' },
+                        }}
+                        noValidate
+                        autoComplete="off"
+                    >
+                        <TextField
+                            label="Friend ID"
+                            variant="filled"
+                            InputProps={{
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    <AccountCircle />
+                                  </InputAdornment>
+                                ),
+                            }}
+                            value={this.state.friendId}
+                            onChange={e => { this.setState({ friendId: e.target.value }); }} />
 
-                    <br />
-                    <br />
+                        <TextField
+                            label="Message"
+                            variant="filled"
+                            value={this.state.message}
+                            onChange={e => { this.setState({ message: e.target.value }); }} />
 
-                    <label>Message:</label>
-                    <input
-                        type="text"
-                        value={this.state.message}
-                        onChange={e => { this.setState({ message: e.target.value }); }} />
-                    <button onClick={this.send}>Send</button>
+                        <Button variant="contained" onClick={this.send}>Send</Button>
 
+                    </Box>
                     <dl>
                         {
                             this.state.messages.map((message, i) => {

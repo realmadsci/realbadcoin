@@ -1,5 +1,6 @@
 // Imports from paulmillr.github.io demo:
 import * as React from 'react';
+import TextField from '@mui/material/TextField';
 
 import * as ed from '@noble/ed25519';
 import { sha256 } from '@noble/hashes/sha256';
@@ -120,22 +121,14 @@ class EccApp extends React.Component {
                     </label>
                     <Spoiler>{this.state.privKey}</Spoiler>
                 </div>
-                <div>
-                    <label htmlFor="message-to-sign">
-                        <strong>Message to sign</strong>
-                    </label>
-                </div>
-                <div>
-                    <input
-                        id="message-to-sign"
-                        type="text"
-                        size="66"
-                        maxLength="512"
-                        value={this.state.message}
-                        onChange={this.onMsgChange.bind(this)}
-                        onKeyUp={this.onMsgChange.bind(this)}
+                <TextField
+                    label="Message to sign"
+                    variant="filled"
+                    maxLength="512"
+                    value={this.state.message}
+                    onChange={this.onMsgChange.bind(this)}
+                    onKeyUp={this.onMsgChange.bind(this)}
                     />
-                </div>
                 <div className="selected-curve">
                     {<this.state.curve privKey={this.state.privKey} message={this.state.message} />}
                 </div>
