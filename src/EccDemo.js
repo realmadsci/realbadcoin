@@ -12,10 +12,10 @@ import ListItemButton from '@mui/material/ListItemButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 
+import AccountBalanceRoundedIcon from '@mui/icons-material/AccountBalanceRounded';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
-import LockIcon from '@mui/icons-material/Lock';
-import VpnKeyIcon from '@mui/icons-material/VpnKey';
+import LockRoundedIcon from '@mui/icons-material/LockRounded';
 
 import * as ed from '@noble/ed25519';
 import { sha256 } from '@noble/hashes/sha256';
@@ -128,10 +128,10 @@ class EccApp extends React.Component {
                 <List>
                     <ListItem>
                         <ListItemIcon>
-                            <VpnKeyIcon />
+                            <AccountBalanceRoundedIcon />
                         </ListItemIcon>
                         <ListItemText
-                            primary="Public Key"
+                            primary="Account Number"
                             secondary={this.state.pubKeyHex}
                         />
                         <IconButton
@@ -145,7 +145,7 @@ class EccApp extends React.Component {
                         <List component="div" disablePadding>
                             <ListItem>
                                 <ListItemIcon>
-                                    <LockIcon />
+                                    <LockRoundedIcon />
                                 </ListItemIcon>
                                 <ListItemText
                                     primary="Private Key"

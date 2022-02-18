@@ -1,10 +1,17 @@
 // Peer-to-peer comms using peerjs
 import * as React from 'react';
-import AccountCircle from '@mui/icons-material/AccountCircle';
+
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import InputAdornment from '@mui/material/InputAdornment';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
 import TextField from '@mui/material/TextField';
+
+import CloudRoundedIcon from '@mui/icons-material/CloudRounded';
+import SensorsRoundedIcon from '@mui/icons-material/SensorsRounded';
 
 import Peer from 'peerjs';
 
@@ -97,8 +104,6 @@ class PeerApp extends React.Component {
         return (
             <div className="wrapper">
                 <div className="col">
-                    <h1>My ID: {this.state.myId}</h1>
-
                     <Box
                         component="form"
                         sx={{
@@ -107,13 +112,25 @@ class PeerApp extends React.Component {
                         noValidate
                         autoComplete="off"
                     >
+                        <List component="div" disablePadding>
+                            <ListItem>
+                                <ListItemIcon>
+                                    <SensorsRoundedIcon />
+                                </ListItemIcon>
+                                <ListItemText
+                                    primary="Network ID"
+                                    secondary={this.state.myId}
+                                />
+                            </ListItem>
+                        </List>
+
                         <TextField
                             label="Friend ID"
                             variant="filled"
                             InputProps={{
                                 startAdornment: (
                                   <InputAdornment position="start">
-                                    <AccountCircle />
+                                    <CloudRoundedIcon />
                                   </InputAdornment>
                                 ),
                             }}
