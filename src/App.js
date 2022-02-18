@@ -2,6 +2,7 @@ import * as React from 'react';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import Paper from '@mui/material/Paper';
 
 import EccApp from './EccDemo';
 import PeerApp from './PeerDemo';
@@ -22,8 +23,12 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <EccApp />
-      <PeerApp />
+      <Paper>
+        <EccApp />
+      </Paper>
+      <Paper>
+        <PeerApp />
+      </Paper>
     </ThemeProvider>
   );
 }
