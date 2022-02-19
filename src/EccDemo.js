@@ -125,7 +125,7 @@ class EccApp extends React.Component {
     render() {
         return (
             <>
-                <List>
+                <List component="div" disablePadding>
                     <ListItem>
                         <ListItemIcon>
                             <AccountBalanceRoundedIcon />
