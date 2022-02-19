@@ -16,6 +16,13 @@ function App() {
         palette: {
           mode: prefersDarkMode ? 'dark' : 'light',
         },
+        typography: {
+          hexblob: {
+            fontFamily: ['Roboto Mono', 'Consolas', 'Courier New'].join(','),
+            overflowWrap: "break-word",
+            textTransform: "uppercase",
+          }
+        },
       }),
     [prefersDarkMode],
   );

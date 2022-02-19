@@ -10,6 +10,7 @@ import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
+import Typography from '@mui/material/Typography';
 
 import AccountBalanceRoundedIcon from '@mui/icons-material/AccountBalanceRounded';
 import ExpandLessRoundedIcon from '@mui/icons-material/ExpandLessRounded';
@@ -132,6 +133,7 @@ class EccApp extends React.Component {
                         <ListItemText
                             primary="Account Number"
                             secondary={this.state.pubKeyHex}
+                            secondaryTypographyProps={{variant: "hexblob"}}
                         />
                         <IconButton
                             aria-label={this.state.showPrivKey ? "Hide Private Key" : "Show Private Key"}
@@ -149,6 +151,7 @@ class EccApp extends React.Component {
                                 <ListItemText
                                     primary="Private Key"
                                     secondary={this.state.privKeyHex}
+                                    secondaryTypographyProps={{variant: "hexblob"}}
                                 />
                             </ListItem>
                         </List>
@@ -162,7 +165,7 @@ class EccApp extends React.Component {
                     onChange={this.onMsgChange.bind(this)}
                     onKeyUp={this.onMsgChange.bind(this)}
                 />
-                {this.state.sigHex}
+                <Typography variant="hexblob">{this.state.sigHex}</Typography>
             </>
         );
     }
