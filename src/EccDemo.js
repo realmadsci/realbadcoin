@@ -116,52 +116,6 @@ class EccApp extends React.Component {
 
     updateSig(msg) {
         this.state.id.sign(utf8ToBytes(msg)).then(sig=>this.setState({sigHex: bytesToHex(sig)}));
-
-        this.state.id.sign(utf8ToBytes(msg)).then(sig=>{
-            // Make an NFT
-            let nftMint = new RealBadTransaction();
-            nftMint.txData = new RealBadNftMint();
-            nftMint.txData.nftData = {hello: "world"}
-            nftMint.txData.nftId = nftMint.txData.hash();
-            nftMint.seal(this.state.id).then(()=>{
-                nftMint.isValid().then((v)=>{
-                    console.log("nftMint isValid = " + v);
-                    console.log("nftMint = " + JSON.stringify(nftMint));
-
-                    let diffNft = nftMint;
-                    // Any change breaks the NFT!
-                    diffNft.txData.nftData = {goodbye: "world"};
-                    console.log("diffNft.txData.isValid() = " + diffNft.txData.isValid());
-                    diffNft.isValid().then((v)=>{
-                        console.log("diffNft isValid = " + v);
-                    });
-                });
-            });
-
-            // Send it to a random "friend" to burn it:
-            let nftBurn = new RealBadTransaction();
-            nftBurn.txData = new RealBadNftTransfer();
-            nftBurn.txData.destination = bytesToHex(window.crypto.getRandomValues(new Uint8Array(32)));
-            nftBurn.txData.nftId = nftMint.txData.nftId;
-            nftBurn.seal(this.state.id).then(()=>{
-                nftBurn.isValid().then((v)=>{
-                    console.log("nftBurn isValid = " + v);
-                    console.log("nftBurn = " + JSON.stringify(nftBurn));
-                });
-            });
-
-            // Also burn some money by sending it to this "friend":
-            let coinBurn = new RealBadTransaction();
-            coinBurn.txData = new RealBadCoinTransfer();
-            coinBurn.txData.destination = nftBurn.txData.destination;
-            coinBurn.txData.amount = 1e6;
-            coinBurn.seal(this.state.id).then(()=>{
-                coinBurn.isValid().then((v)=>{
-                    console.log("coinBurn isValid = " + v);
-                    console.log("coinBurn = " + JSON.stringify(coinBurn));
-                });
-            });
-        });
     }
 
     componentDidMount() {
