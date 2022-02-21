@@ -226,3 +226,57 @@ test('Transfer some coins', async()=>{
     await coinBurn.seal(new AccountMock());
     expect(await coinBurn.isValid()).toBe(true);
 });
+
+
+test('Verify Transactions outer fields', async()=>{
+    // First make a good transaction before we mess with it:
+    let coinBurn = new RealBadTransaction();
+    let txData = new RealBadCoinTransfer();
+    let dest = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+    coinBurn.txData = txData;
+    coinBurn.txData.destination = dest;
+    coinBurn.txData.amount = 1;
+    expect(coinBurn.txData.isValid()).toBe(true);
+    await coinBurn.seal(new AccountMock());
+    expect(await coinBurn.isValid()).toBe(true);
+
+    // Any messing will break the signature!
+    coinBurn.txData.amount = 2;
+    // The inner data is still legit
+    expect(coinBurn.txData.isValid()).toBe(true);
+    // But the signature fails!
+    expect(await coinBurn.isValid()).toBe(false);
+    // But if you talk nicely and walk it back we can be friends again:
+    coinBurn.txData.amount = 1;
+    expect(await coinBurn.isValid()).toBe(true);
+
+    // Can't change destination:
+    coinBurn.txData.destination = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+    expect(coinBurn.txData.isValid()).toBe(true);
+    expect(await coinBurn.isValid()).toBe(false);
+    coinBurn.txData.destination = dest;
+    expect(await coinBurn.isValid()).toBe(true);
+
+    // Can't change nonce:
+    coinBurn.txData.sourceNonce = 1;
+    expect(coinBurn.txData.isValid()).toBe(true);
+    expect(await coinBurn.isValid()).toBe(false);
+    coinBurn.txData.sourceNonce = 0;
+    expect(await coinBurn.isValid()).toBe(true);
+
+    /* TODO: Still need to test these fields:
+    // The source ID is a 32-byte hex value
+    (hexToBytes(this.source).length === 32) &&
+
+    // The timestamp is a Date object and contains a valid value
+    Object.prototype.toString.call(this.timestamp) === '[object Date]' &&
+    !isNaN(this.timestamp.getTime()) &&
+
+    // The transaction fee is a non-negative finite number
+    Number.isFinite(this.transactionFee) &&
+    (this.transactionFee >= 0) &&
+
+    // The transaction internal data is valid
+    this.txData.isValid() &&
+    */
+});
