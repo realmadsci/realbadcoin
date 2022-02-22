@@ -267,48 +267,48 @@ export class RealBadTransaction {
 }
 
 export class RealBadBlock {
-    data = {
-        prevBlockHash: '00'.repeat(32), // Hash of previous block. It is included in this block to form a block-chain.
-        blockHeight: 0,                 // How far we are "above" the genesis block. This is previous block's height + 1.
-        timestamp: null,                // Time of last update to the block (prior to hash computation). This is mainly for display purposes.
-        transactions: [],               // List of all transactions in the block
-        miningReward: 100,              // Base reward claimed for mining this block
-        transactionFeeTotal: 0,         // Total of all miner_fee values for every transaction in this block
-        rewardDestination: null,        // Miner's destination account ID (public key) for mining reward and transaction fees.
-        changedAccounts: {},            // Set of updated (Account ID, Balance) pairs for accounts involved in any transactions in this block.
-        changedNfts: {},                // Set of (NFT ID, Owner Account ID)  pairs for any NFTs involved in any transactions in this block.
-        difficulty: 256**2,             // Required difficulty for hash. Increasing this makes it harder to find a valid hash. For example, setting this to 256**N will require the top N bytes of the hash to be zeros.
-        nonce: 0,                       // Number that can be changed to cause blockHash to vary
-    }
-    blockHash = null;                   // Hash of the data section of the block. This must be less than  This is used as the block ID as well.
+    prevHash = '00'.repeat(32); // Hash of previous block. It is included in this block to form a block-chain.
+    blockHeight = 0;            // How far we are "above" the genesis block. This is previous block's height + 1.
+    timestamp = null;           // Time of last update to the block (prior to hash computation). This is mainly for display purposes.
+    transactions = [];          // List of all transactions in the block
+    miningReward = 100;         // Base reward claimed for mining this block
+    transactionFeeTotal = 0;    // Total of all miner_fee values for every transaction in this block
+    rewardDestination = null;   // Miner's destination account ID (public key) for mining reward and transaction fees.
+    changedAccounts = {};       // Set of updated (Account ID, Balance) pairs for accounts involved in any transactions in this block.
+    changedNfts = {};           // Set of (NFT ID, Owner Account ID)  pairs for any NFTs involved in any transactions in this block.
+    difficulty = 256**2;        // Required difficulty for hash. Increasing this makes it harder to find a valid hash. For example, setting this to 256**N will require the top N bytes of the hash to be zeros.
+    nonce = 0;                  // Number that can be changed to cause block's hash to vary
 
-    // Compute the hash (blockHash) of this object
-    hash() {
-        let block_val = JSON.stringify(this.data);
+    // Compute the hash of this object
+    // NOTE: We don't STORE the hash of the object inside the object because this
+    //       isn't a signed object so we can't trust the validity of any hash that
+    //       is TOLD to us! We have to check it ourselves!
+    get hash() {
+        let block_val = JSON.stringify(this);
         return bytesToHex(sha256(block_val));
     }
 
     isSealed(minDifficulty = 256**2) {
-        let difficulty = Math.max(minDifficulty, this.data.difficulty);
+        let difficulty = Math.max(minDifficulty, this.difficulty);
         let maxHash = (1n << 256n) / BigInt(difficulty);
-        let hashAsInt = hexToBigint(this.blockHash);
+        let hashAsInt = hexToBigint(this.hash);
         return hashAsInt < maxHash;
     }
 
     // Increment the nonce and keep trying to find a hash that is valid.
     // Try up to num_attempts times before giving up.
     tryToSeal(num_attempts) {
-        let maxHash = (1n << 256n) / BigInt(this.data.difficulty);
-        this.data.timestamp = new Date();
+        let maxHash = (1n << 256n) / BigInt(this.difficulty);
+        this.timestamp = new Date();
 
         for (let i = 0; i < num_attempts; i++) {
-            this.blockHash = this.hash();
-            let hashAsInt = hexToBigint(this.blockHash);
+            let hash = this.hash;
+            let hashAsInt = hexToBigint(hash);
             if (hashAsInt < maxHash) {
                 return this.isSealed();
             }
             // We post-increment the nonce, so that repeated calls to this function don't waste any work.
-            this.data.nonce++;
+            this.nonce++;
         }
         return false;
     }
@@ -316,38 +316,33 @@ export class RealBadBlock {
     // Accept an object and attempt to convert it into a valid object of this type.
     // Return null if it doesn't work or if the resulting object is invalid.
     static async coerce({
-        data: {
-            prevBlockHash,
-            blockHeight,
-            timestamp,
-            transactions,
-            miningReward,
-            transactionFeeTotal,
-            rewardDestination,
-            changedAccounts,
-            changedNfts,
-            difficulty,
-            nonce,
-        },
-        blockHash,
+        prevHash,
+        blockHeight,
+        timestamp,
+        transactions,
+        miningReward,
+        transactionFeeTotal,
+        rewardDestination,
+        changedAccounts,
+        changedNfts,
+        difficulty,
+        nonce,
     }) {
         try {
             let r = new RealBadBlock();
-            r.data.prevBlockHash = prevBlockHash;
-            r.data.blockHeight = blockHeight;
-            r.data.timestamp = new Date(timestamp);
-            r.data.transactions = await Promise.all(transactions.map(async (t)=>{
+            r.prevHash = prevHash;
+            r.blockHeight = blockHeight;
+            r.timestamp = new Date(timestamp);
+            r.transactions = await Promise.all(transactions.map(async (t)=>{
                 return await RealBadTransaction.coerce(t)
             }));
-            r.data.miningReward = miningReward;
-            r.data.transactionFeeTotal = transactionFeeTotal;
-            r.data.rewardDestination = rewardDestination;
-            r.data.changedAccounts = changedAccounts;
-            r.data.changedNfts = changedNfts;
-            r.data.difficulty = difficulty;
-            r.data.nonce = nonce;
-
-            r.blockHash = blockHash;
+            r.miningReward = miningReward;
+            r.transactionFeeTotal = transactionFeeTotal;
+            r.rewardDestination = rewardDestination;
+            r.changedAccounts = changedAccounts;
+            r.changedNfts = changedNfts;
+            r.difficulty = difficulty;
+            r.nonce = nonce;
 
             return (await r.isValid()) ? r : null;
         } catch (error) {
@@ -372,56 +367,56 @@ export class RealBadBlock {
                 //       "nonce" so we can skip those fields from now on.
 
                 // The previous block hash is a 32-byte hex value
-                && (hexToBytes(this.data.prevBlockHash).length === 32)
+                && (hexToBytes(this.prevHash).length === 32)
 
                 // The blockHeight is a non-negative integer
-                && Number.isInteger(this.data.blockHeight)
-                && this.data.blockHeight >= 0
+                && Number.isInteger(this.blockHeight)
+                && this.blockHeight >= 0
 
                 // If the blockHeight is 0, the previous hash should be all 0's as well:
                 && (
-                    this.data.blockHeight > 0 ||
-                    (this.data.prevBlockHash === '00'.repeat(32))
+                    this.blockHeight > 0 ||
+                    (this.prevHash === '00'.repeat(32))
                 )
 
                 // The timestamp is a Date object and contains a valid value
-                && (this.data.timestamp instanceof Date)
-                && !isNaN(this.data.timestamp.getTime())
+                && (this.timestamp instanceof Date)
+                && !isNaN(this.timestamp.getTime())
 
                 // All the transactions have valid signatures and contain correct data types
-                && Array.isArray(this.data.transactions)
-                && asyncEvery(this.data.transactions, async(t)=>{
+                && Array.isArray(this.transactions)
+                && asyncEvery(this.transactions, async(t)=>{
                     return (t instanceof RealBadTransaction) && await t.isValid();
                 })
 
                 // The mining reward is a non-negative finite number
-                && Number.isFinite(this.data.miningReward)
-                && (this.data.miningReward >= 0)
+                && Number.isFinite(this.miningReward)
+                && (this.miningReward >= 0)
 
                 // The transaction fee total is legit
                 && (
-                    this.data.transactions.map(t=>t.transactionFee).reduce((a,b)=>a+b, 0)
-                    == this.data.transactionFeeTotal
+                    this.transactions.map(t=>t.transactionFee).reduce((a,b)=>a+b, 0)
+                    == this.transactionFeeTotal
                 )
 
                 // The reward address is a 32-byte hex value
-                && (hexToBytes(this.data.rewardDestination).length === 32)
+                && (hexToBytes(this.rewardDestination).length === 32)
 
                 // The changedAccounts consist of a 32-byte hex string key as account ID and a
                 // finite non-negative Number as the balance
-                && Object.keys(this.data.changedAccounts).every((k)=>{
+                && Object.keys(this.changedAccounts).every((k)=>{
                     return (hexToBytes(k).length === 32)
                 })
-                && Object.values(this.data.changedAccounts).every((v)=>{
+                && Object.values(this.changedAccounts).every((v)=>{
                     return Number.isFinite(v) && (v >= 0);
                 })
 
                 // The changedNfts is a 32-byte hex string key for the NFT ID and a 32-byte hex
                 // string value for the owner account ID
-                && Object.keys(this.data.changedNfts).every((k)=>{
+                && Object.keys(this.changedNfts).every((k)=>{
                     return (hexToBytes(k).length === 32)
                 })
-                && Object.values(this.data.changedNfts).every((v)=>{
+                && Object.values(this.changedNfts).every((v)=>{
                     return (hexToBytes(v).length === 32)
                 })
             );

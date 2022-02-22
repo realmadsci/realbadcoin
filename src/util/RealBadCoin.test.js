@@ -342,25 +342,25 @@ test('Basic block sealing', ()=>{
 
     // Pick an easy target to save testing time, but hard enough that
     // it isn't likely to happen by accident.
-    block.data.difficulty = 256**2;
+    block.difficulty = 256**2;
     // Expect it to fail in the first 10 tries (pretty good odds).
     expect(block.tryToSeal(10)).toBe(false); //<---- I suppose this might fail every 65536/10 times :shrug:
-    expect(block.data.nonce).toBe(10);
+    expect(block.nonce).toBe(10);
     expect(block.tryToSeal(1e6)).toBe(true);
     expect(block.isSealed()).toBe(true);
 
     // We requested 2 bytes of hash to be 0's, so make sure they are!
-    expect(block.blockHash.slice(0,4)).toBe("0000");
+    expect(block.hash.slice(0,4)).toBe("0000");
 });
 
 
 test('Basic empty block', async ()=>{
     let b = new RealBadBlock();
-    b.data.rewardDestination = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+    b.rewardDestination = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
 
     // Pick an easy target to save testing time, but hard enough that
     // it isn't likely to happen by accident.
-    b.data.difficulty = 256**2;
+    b.difficulty = 256**2;
 
     // Seal it
     expect(b.tryToSeal(1e6)).toBe(true);
@@ -379,8 +379,8 @@ test('Non-empty block', async ()=>{
     let b = new RealBadBlock();
     // Pick an easy target to save testing time, but hard enough that
     // it isn't likely to happen by accident.
-    b.data.difficulty = 256**2;
-    b.data.rewardDestination = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+    b.difficulty = 256**2;
+    b.rewardDestination = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
 
     // Make a coin transfer
     let t1 = new RealBadTransaction();
@@ -393,8 +393,8 @@ test('Non-empty block', async ()=>{
     expect(await t1.isValid()).toBe(true);
 
     // Add it to the block
-    b.data.transactions.push(t1);
-    b.data.transactionFeeTotal += t1.transactionFee;
+    b.transactions.push(t1);
+    b.transactionFeeTotal += t1.transactionFee;
 
     // Mint an NFT
     let t2 = new RealBadTransaction();
@@ -404,8 +404,8 @@ test('Non-empty block', async ()=>{
     t2.transactionFee = 0.3;
     await t2.seal(new AccountMock());
     expect(await t2.isValid()).toBe(true);
-    b.data.transactions.push(t2);
-    b.data.transactionFeeTotal += t2.transactionFee;
+    b.transactions.push(t2);
+    b.transactionFeeTotal += t2.transactionFee;
 
     // Transfer an NFT
     let t3 = new RealBadTransaction();
@@ -415,11 +415,11 @@ test('Non-empty block', async ()=>{
     t3.transactionFee = 0.5;
     await t3.seal(new AccountMock())
     expect(await t3.isValid()).toBe(true);
-    b.data.transactions.push(t3);
-    b.data.transactionFeeTotal += t3.transactionFee;
+    b.transactions.push(t3);
+    b.transactionFeeTotal += t3.transactionFee;
 
     // Claim the rewards!
-    b.data.changedAccounts[b.data.rewardDestination] = b.data.miningReward + b.data.transactionFeeTotal;
+    b.changedAccounts[b.rewardDestination] = b.miningReward + b.transactionFeeTotal;
 
     // Seal it
     expect(b.tryToSeal(1e6)).toBe(true);
