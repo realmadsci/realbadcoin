@@ -282,10 +282,9 @@ test('Verify Transactions outer fields', async()=>{
     expect(await coinBurn.isValid()).toBe(true);
 
     // Can't change nonce:
-    coinBurn.txData.sourceNonce = 1;
-    expect(coinBurn.txData.isValid()).toBe(true);
+    coinBurn.sourceNonce = 1;
     expect(await coinBurn.isValid()).toBe(false);
-    coinBurn.txData.sourceNonce = 0;
+    coinBurn.sourceNonce = 0;
     expect(await coinBurn.isValid()).toBe(true);
 
     // Can't change the time:
@@ -385,7 +384,7 @@ test('Non-empty block', async ()=>{
     // Make a coin transfer
     let t1 = new RealBadTransaction();
     t1.txData = new RealBadCoinTransfer();
-    t1.txData.sourceNonce = 0;
+    t1.sourceNonce = 0;
     t1.txData.destination = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
     t1.txData.amount = 100;
     t1.transactionFee = 0.1;
@@ -394,7 +393,6 @@ test('Non-empty block', async ()=>{
 
     // Add it to the block
     b.transactions.push(t1);
-    b.transactionFeeTotal += t1.transactionFee;
 
     // Mint an NFT
     let t2 = new RealBadTransaction();
@@ -405,7 +403,6 @@ test('Non-empty block', async ()=>{
     await t2.seal(new AccountMock());
     expect(await t2.isValid()).toBe(true);
     b.transactions.push(t2);
-    b.transactionFeeTotal += t2.transactionFee;
 
     // Transfer an NFT
     let t3 = new RealBadTransaction();
@@ -416,10 +413,6 @@ test('Non-empty block', async ()=>{
     await t3.seal(new AccountMock())
     expect(await t3.isValid()).toBe(true);
     b.transactions.push(t3);
-    b.transactionFeeTotal += t3.transactionFee;
-
-    // Claim the rewards!
-    b.changedAccounts[b.rewardDestination] = b.miningReward + b.transactionFeeTotal;
 
     // Seal it
     expect(b.tryToSeal(1e6)).toBe(true);

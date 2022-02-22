@@ -14,7 +14,6 @@ export async function asyncEvery(arr, predicate) {
 
 export class RealBadCoinTransfer {
     type = "coin_transfer";
-    sourceNonce = 0;    // Incrementing number specifying transaction count for this account. Must be sequentially incrementing or transaction will be ignored.
     destination = null; // Destination account ID (public key)
     amount = 0;         // Amount of RealBadCoin to transfer (floating point number)
 
@@ -22,14 +21,12 @@ export class RealBadCoinTransfer {
     // Return null if it doesn't work or if the resulting object is invalid.
     static coerce({
         type,
-        sourceNonce,
         destination,
         amount,
     }) {
         try {
             let r = new RealBadCoinTransfer();
             r.type = type;
-            r.sourceNonce = sourceNonce;
             r.destination = destination;
             r.amount = amount;
             return r.isValid() ? r : null;
@@ -43,9 +40,6 @@ export class RealBadCoinTransfer {
         try {
             return (
                 this.type === "coin_transfer" &&
-
-                // The source nonce is an integer
-                Number.isInteger(this.sourceNonce) &&
 
                 // The destination is a 32-byte hex value
                 (hexToBytes(this.destination).length === 32) &&
@@ -178,6 +172,9 @@ export class RealBadNftTransfer {
 // Required base fields for every transaction that occurs in the network
 export class RealBadTransaction {
     source = null;          // Source account ID (public key)
+    sourceNonce = 0;        // Source account transaction nonce. Used to ensure transactions (including transactionFees) apply IN ORDER.
+                            // Must be sequentially incrementing or transaction will be ignored.
+                            // nonce is NOT REQURIED and NOT UPDATED if no coins are spent (txFee or transfer).
     timestamp = null;       // Time when the transaction is created. Miners will only propagate and process transactions during a certain time window.
     transactionFee = 0;     // Fee to be paid to the miner if this transaction is accepted into a block. Miners _might_ not accept transactions without fees!
     txData = null;          // The data portion of the transaction. One of the valid transaction object types must go here.
@@ -188,6 +185,7 @@ export class RealBadTransaction {
     hash() {
         let tx_val = JSON.stringify([
             this.source,
+            this.sourceNonce,
             this.timestamp,
             this.transactionFee,
             this.txData,
@@ -199,6 +197,7 @@ export class RealBadTransaction {
     // Return null if it doesn't work or if the resulting object is invalid.
     static async coerce({
         source,
+        sourceNonce,
         timestamp,
         transactionFee,
         txData,
@@ -208,6 +207,7 @@ export class RealBadTransaction {
         try {
             let r = new RealBadTransaction();
             r.source = source;
+            r.sourceNonce = sourceNonce;
             r.timestamp = new Date(timestamp);
             r.transactionFee = transactionFee;
             r.txId = txId;
@@ -231,6 +231,9 @@ export class RealBadTransaction {
             return (
                 // The source ID is a 32-byte hex value
                 (hexToBytes(this.source).length === 32) &&
+
+                // The source nonce is an integer
+                Number.isInteger(this.sourceNonce) &&
 
                 // The timestamp is a Date object and contains a valid value
                 (this.timestamp instanceof Date) &&
@@ -272,10 +275,7 @@ export class RealBadBlock {
     timestamp = null;           // Time of last update to the block (prior to hash computation). This is mainly for display purposes.
     transactions = [];          // List of all transactions in the block
     miningReward = 100;         // Base reward claimed for mining this block
-    transactionFeeTotal = 0;    // Total of all miner_fee values for every transaction in this block
     rewardDestination = null;   // Miner's destination account ID (public key) for mining reward and transaction fees.
-    changedAccounts = {};       // Set of updated (Account ID, Balance) pairs for accounts involved in any transactions in this block.
-    changedNfts = {};           // Set of (NFT ID, Owner Account ID)  pairs for any NFTs involved in any transactions in this block.
     difficulty = 256**2;        // Required difficulty for hash. Increasing this makes it harder to find a valid hash. For example, setting this to 256**N will require the top N bytes of the hash to be zeros.
     nonce = 0;                  // Number that can be changed to cause block's hash to vary
 
@@ -321,10 +321,7 @@ export class RealBadBlock {
         timestamp,
         transactions,
         miningReward,
-        transactionFeeTotal,
         rewardDestination,
-        changedAccounts,
-        changedNfts,
         difficulty,
         nonce,
     }) {
@@ -337,10 +334,7 @@ export class RealBadBlock {
                 return await RealBadTransaction.coerce(t)
             }));
             r.miningReward = miningReward;
-            r.transactionFeeTotal = transactionFeeTotal;
             r.rewardDestination = rewardDestination;
-            r.changedAccounts = changedAccounts;
-            r.changedNfts = changedNfts;
             r.difficulty = difficulty;
             r.nonce = nonce;
 
@@ -352,9 +346,8 @@ export class RealBadBlock {
     }
 
     // Check that the block is sealed properly and confirm that all fields have correct non-null data types.
-    // This also checks that every Transaction in the block is correctly signed and that every one of the
-    // changedAccounts and changedNfts have account IDs and totals of the correct types.
-    // NOTE: This does NOT mean that the Transactions and account updates are ALLOWED and CORRECT. That has to
+    // This also checks that every Transaction in the block is correctly signed.
+    // NOTE: This does NOT mean that the Transactions are ALLOWED and CORRECT. That has to
     //       be validated at the "block chain" level!
     async isValid(minDifficulty = 256**2) {
         try {
@@ -393,37 +386,11 @@ export class RealBadBlock {
                 && Number.isFinite(this.miningReward)
                 && (this.miningReward >= 0)
 
-                // The transaction fee total is legit
-                && (
-                    this.transactions.map(t=>t.transactionFee).reduce((a,b)=>a+b, 0)
-                    == this.transactionFeeTotal
-                )
-
                 // The reward address is a 32-byte hex value
                 && (hexToBytes(this.rewardDestination).length === 32)
-
-                // The changedAccounts consist of a 32-byte hex string key as account ID and a
-                // finite non-negative Number as the balance
-                && Object.keys(this.changedAccounts).every((k)=>{
-                    return (hexToBytes(k).length === 32)
-                })
-                && Object.values(this.changedAccounts).every((v)=>{
-                    return Number.isFinite(v) && (v >= 0);
-                })
-
-                // The changedNfts is a 32-byte hex string key for the NFT ID and a 32-byte hex
-                // string value for the owner account ID
-                && Object.keys(this.changedNfts).every((k)=>{
-                    return (hexToBytes(k).length === 32)
-                })
-                && Object.values(this.changedNfts).every((v)=>{
-                    return (hexToBytes(v).length === 32)
-                })
             );
         } catch {
             return false;
         }
     }
-
-
 }
