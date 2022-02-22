@@ -335,3 +335,100 @@ test('Verify Transactions outer fields', async()=>{
     coinBurn.txId = oldHash;
     expect(await coinBurn.isValid()).toBe(true);
 });
+
+
+test('Basic block sealing', ()=>{
+    let block = new RealBadBlock();
+
+    // Pick an easy target to save testing time, but hard enough that
+    // it isn't likely to happen by accident.
+    block.data.difficulty = 256**2;
+    // Expect it to fail in the first 10 tries (pretty good odds).
+    expect(block.tryToSeal(10)).toBe(false); //<---- I suppose this might fail every 65536/10 times :shrug:
+    expect(block.data.nonce).toBe(10);
+    expect(block.tryToSeal(1e6)).toBe(true);
+    expect(block.isSealed()).toBe(true);
+
+    // We requested 2 bytes of hash to be 0's, so make sure they are!
+    expect(block.blockHash.slice(0,4)).toBe("0000");
+});
+
+
+test('Basic empty block', async ()=>{
+    let b = new RealBadBlock();
+    b.data.rewardDestination = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+
+    // Pick an easy target to save testing time, but hard enough that
+    // it isn't likely to happen by accident.
+    b.data.difficulty = 256**2;
+
+    // Seal it
+    expect(b.tryToSeal(1e6)).toBe(true);
+    expect(b.isSealed()).toBe(true);
+
+    // This should be a valid block now.
+    expect(await b.isValid()).toBe(true);
+
+    // Deep copy is still valid:
+    let deepCopy = await RealBadBlock.coerce(JSON.parse(JSON.stringify(b)));
+    expect(await deepCopy.isValid()).toBe(true);
+});
+
+
+test('Non-empty block', async ()=>{
+    let b = new RealBadBlock();
+    // Pick an easy target to save testing time, but hard enough that
+    // it isn't likely to happen by accident.
+    b.data.difficulty = 256**2;
+    b.data.rewardDestination = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+
+    // Make a coin transfer
+    let t1 = new RealBadTransaction();
+    t1.txData = new RealBadCoinTransfer();
+    t1.txData.sourceNonce = 0;
+    t1.txData.destination = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+    t1.txData.amount = 100;
+    t1.transactionFee = 0.1;
+    await t1.seal(new AccountMock());
+    expect(await t1.isValid()).toBe(true);
+
+    // Add it to the block
+    b.data.transactions.push(t1);
+    b.data.transactionFeeTotal += t1.transactionFee;
+
+    // Mint an NFT
+    let t2 = new RealBadTransaction();
+    t2.txData = new RealBadNftMint();
+    t2.txData.nftData = {hello: "world"}
+    t2.txData.nftId = t2.txData.hash();
+    t2.transactionFee = 0.3;
+    await t2.seal(new AccountMock());
+    expect(await t2.isValid()).toBe(true);
+    b.data.transactions.push(t2);
+    b.data.transactionFeeTotal += t2.transactionFee;
+
+    // Transfer an NFT
+    let t3 = new RealBadTransaction();
+    t3.txData = new RealBadNftTransfer();
+    t3.txData.destination = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+    t3.txData.nftId = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+    t3.transactionFee = 0.5;
+    await t3.seal(new AccountMock())
+    expect(await t3.isValid()).toBe(true);
+    b.data.transactions.push(t3);
+    b.data.transactionFeeTotal += t3.transactionFee;
+
+    // Claim the rewards!
+    b.data.changedAccounts[b.data.rewardDestination] = b.data.miningReward + b.data.transactionFeeTotal;
+
+    // Seal it
+    expect(b.tryToSeal(1e6)).toBe(true);
+    expect(b.isSealed()).toBe(true);
+
+    // This should be a valid block now.
+    expect(await b.isValid()).toBe(true);
+
+    // Deep copy is still valid:
+    let deepCopy = await RealBadBlock.coerce(JSON.parse(JSON.stringify(b)));
+    expect(await deepCopy.isValid()).toBe(true);
+});
