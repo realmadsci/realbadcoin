@@ -264,19 +264,50 @@ test('Verify Transactions outer fields', async()=>{
     coinBurn.txData.sourceNonce = 0;
     expect(await coinBurn.isValid()).toBe(true);
 
-    /* TODO: Still need to test these fields:
-    // The source ID is a 32-byte hex value
-    (hexToBytes(this.source).length === 32) &&
+    // Can't change the time:
+    let oldDate = coinBurn.timestamp;
+    coinBurn.timestamp = new Date();
+    expect(await coinBurn.isValid()).toBe(false);
+    coinBurn.timestamp = oldDate;
+    expect(await coinBurn.isValid()).toBe(true);
 
-    // The timestamp is a Date object and contains a valid value
-    Object.prototype.toString.call(this.timestamp) === '[object Date]' &&
-    !isNaN(this.timestamp.getTime()) &&
+    // Can't change transaction fee
+    coinBurn.transactionFee = 1;
+    expect(await coinBurn.isValid()).toBe(false);
+    coinBurn.transactionFee = 0;
+    expect(await coinBurn.isValid()).toBe(true);
 
-    // The transaction fee is a non-negative finite number
-    Number.isFinite(this.transactionFee) &&
-    (this.transactionFee >= 0) &&
+    // No infinite or negative transaction fees!
+    coinBurn.transactionFee = -1;
+    await coinBurn.seal(new AccountMock());
+    expect(await coinBurn.isValid()).toBe(false);
 
-    // The transaction internal data is valid
-    this.txData.isValid() &&
-    */
+    coinBurn.transactionFee = -Infinity;
+    await coinBurn.seal(new AccountMock());
+    expect(await coinBurn.isValid()).toBe(false);
+
+    coinBurn.transactionFee = Infinity;
+    await coinBurn.seal(new AccountMock());
+    expect(await coinBurn.isValid()).toBe(false);
+
+    coinBurn.transactionFee = NaN;
+    await coinBurn.seal(new AccountMock());
+    expect(await coinBurn.isValid()).toBe(false);
+
+    coinBurn.transactionFee = null;
+    await coinBurn.seal(new AccountMock());
+    expect(await coinBurn.isValid()).toBe(false);
+
+    coinBurn.transactionFee = 1;
+    await coinBurn.seal(new AccountMock());
+    expect(await coinBurn.isValid()).toBe(true);
+
+    // No mucking around with txId:
+    let oldHash = coinBurn.txId;
+    coinBurn.txId = coinBurn.txId.replace('a', 'b');
+    expect(await coinBurn.isValid()).toBe(false);
+    coinBurn.txId = oldHash.slice(31);
+    expect(await coinBurn.isValid()).toBe(false);
+    coinBurn.txId = oldHash;
+    expect(await coinBurn.isValid()).toBe(true);
 });
