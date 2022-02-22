@@ -61,6 +61,10 @@ test('Construct a Coin Transfer Data Block', ()=>{
     // But giant transfers are fine
     txData.amount = 3.14159e100;
     expect(txData.isValid()).toBe(true);
+
+    // Deep copy is still valid:
+    let deepCopy = RealBadCoinTransfer.coerce(JSON.parse(JSON.stringify(txData)));
+    expect(deepCopy.isValid()).toBe(true);
 });
 
 
@@ -78,6 +82,10 @@ test('Construct an NFT Minting Data Block', ()=>{
     // Until we re-hash it:
     txData.nftId = txData.hash();
     expect(txData.isValid()).toBe(true);
+
+    // Deep copy is still valid:
+    let deepCopy = RealBadNftMint.coerce(JSON.parse(JSON.stringify(txData)));
+    expect(deepCopy.isValid()).toBe(true);
 });
 
 test('Null NFT Minting Data Block is not valid', ()=>{
@@ -142,6 +150,10 @@ test('Construct an NFT Transfer Data Block', ()=>{
     // Final sanity check
     txData.nftNonce = 0;
     expect(txData.isValid()).toBe(true);
+
+    // Deep copy is still valid:
+    let deepCopy = RealBadNftTransfer.coerce(JSON.parse(JSON.stringify(txData)));
+    expect(deepCopy.isValid()).toBe(true);
 });
 
 
@@ -196,6 +208,10 @@ test('Mint an NFT', async()=>{
     expect(await nftMint.isValid()).toBe(false);
     await nftMint.seal(new AccountMock());
     expect(await nftMint.isValid()).toBe(true);
+
+    // Deep copy is still valid:
+    let deepCopy = await RealBadTransaction.coerce(JSON.parse(JSON.stringify(nftMint)));
+    expect(await deepCopy.isValid()).toBe(true);
 });
 
 test('Transfer an NFT', async()=>{
@@ -210,6 +226,10 @@ test('Transfer an NFT', async()=>{
     expect(await nftBurn.isValid()).toBe(false);
     await nftBurn.seal(new AccountMock())
     expect(await nftBurn.isValid()).toBe(true);
+
+    // Deep copy is still valid:
+    let deepCopy = await RealBadTransaction.coerce(JSON.parse(JSON.stringify(nftBurn)));
+    expect(await deepCopy.isValid()).toBe(true);
 });
 
 
@@ -225,6 +245,10 @@ test('Transfer some coins', async()=>{
     expect(await coinBurn.isValid()).toBe(false);
     await coinBurn.seal(new AccountMock());
     expect(await coinBurn.isValid()).toBe(true);
+
+    // Deep copy is still valid:
+    let deepCopy = await RealBadTransaction.coerce(JSON.parse(JSON.stringify(coinBurn)));
+    expect(await deepCopy.isValid()).toBe(true);
 });
 
 

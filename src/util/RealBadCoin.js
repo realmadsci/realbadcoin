@@ -10,6 +10,26 @@ export class RealBadCoinTransfer {
     destination = null; // Destination account ID (public key)
     amount = 0;         // Amount of RealBadCoin to transfer (floating point number)
 
+    // Accept an object and attempt to convert it into a valid object of this type.
+    // Return null if it doesn't work or if the resulting object is invalid.
+    static coerce({
+        type,
+        sourceNonce,
+        destination,
+        amount,
+    }) {
+        try {
+            let r = new RealBadCoinTransfer();
+            r.type = type;
+            r.sourceNonce = sourceNonce;
+            r.destination = destination;
+            r.amount = amount;
+            return r.isValid() ? r : null;
+        } catch {
+            return null;
+        }
+    }
+
     // Check the all fields have correct data types
     isValid() {
         try {
@@ -44,6 +64,24 @@ export class RealBadNftMint {
         return bytesToHex(sha256(JSON.stringify(this.nftData)));
     }
 
+    // Accept an object and attempt to convert it into a valid object of this type.
+    // Return null if it doesn't work or if the resulting object is invalid.
+    static coerce({
+        type,
+        nftData,
+        nftId,
+    }) {
+        try {
+            let r = new RealBadNftMint();
+            r.type = type;
+            r.nftData = nftData;
+            r.nftId = nftId;
+            return r.isValid() ? r : null;
+        } catch {
+            return null;
+        }
+    }
+
     // Check the all fields have correct data types
     isValid() {
         try {
@@ -69,6 +107,44 @@ export class RealBadNftTransfer {
     nftId = null;       // The ID (hash) of the NFT. Must already be minted before it can be transferred.
     nftNonce = 0;       // Incrementing number specifying transfer count for this NFT. Must be sequentually incrementing or the transaction will be ignored.
     destination = null; // Destination account ID (public key) for the new owner of the NFT.
+
+    // Accept an object and attempt to convert it into a valid object of this type.
+    // Return null if it doesn't work or if the resulting object is invalid.
+    static coerce({
+        type,
+        nftData,
+        nftId,
+    }) {
+        try {
+            let r = new RealBadNftMint();
+            r.type = type;
+            r.nftData = nftData;
+            r.nftId = nftId;
+            return r.isValid() ? r : null;
+        } catch {
+            return false;
+        }
+    }
+
+    // Accept an object and attempt to convert it into a valid object of this type.
+    // Return null if it doesn't work or if the resulting object is invalid.
+    static coerce({
+        type,
+        nftId,
+        nftNonce,
+        destination,
+    }) {
+        try {
+            let r = new RealBadNftTransfer();
+            r.type = type;
+            r.nftId = nftId;
+            r.nftNonce = nftNonce;
+            r.destination = destination;
+            return r.isValid() ? r : null;
+        } catch {
+            return null;
+        }
+    }
 
     // Check the all fields have correct data types
     isValid() {
@@ -111,6 +187,36 @@ export class RealBadTransaction {
         return bytesToHex(sha256(tx_val));
     }
 
+    // Accept an object and attempt to convert it into a valid object of this type.
+    // Return null if it doesn't work or if the resulting object is invalid.
+    static async coerce({
+        source,
+        timestamp,
+        transactionFee,
+        txData,
+        txId,
+        signature,
+    }) {
+        try {
+            let r = new RealBadTransaction();
+            r.source = source;
+            r.timestamp = new Date(timestamp);
+            r.transactionFee = transactionFee;
+            r.txId = txId;
+            r.signature = signature;
+
+            // Cute!
+            r.txData =
+                RealBadCoinTransfer.coerce(txData) ||
+                RealBadNftMint.coerce(txData) ||
+                RealBadNftTransfer.coerce(txData);
+
+            return (await r.isValid()) ? r : null;
+        } catch {
+            return null;
+        }
+    }
+
     // Check the signature, hash, and confirm that all fields have correct non-null data types
     async isValid() {
         try {
@@ -150,11 +256,6 @@ export class RealBadTransaction {
         this.txId = this.hash();
         this.signature = bytesToHex(await account.sign(this.txId));
     }
-}
-
-// Extract a concrete RealBadTransaction child class from JSON string
-// This is the reverse of RealBadTransaction.toJSON() function.
-function parseTransaction(str) {
 }
 
 export class RealBadBlock {
