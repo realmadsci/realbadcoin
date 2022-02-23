@@ -218,31 +218,90 @@ export class RealBadLedgerState {
 // Keep track of a set of blocks and provide helper functions for identifying the longest chain, etc.
 // NOTE: This is a LOCAL data structure and is not something that can be trusted if it is sent from elsewhere!
 export class RealBadCache {
-    _states = {}; // Key/value pairs with key as block hash and full state of system as the block itself
-    minDifficulty = 256**2; // Minimum difficulty level of blocks to allow into our cache.
+    _blocks = {};               // Key/value pairs with key as block hash and full state of system as the value
+    _anticipatedBlocks = {};    // Key/value pairs with key as "prevHash" for blocks that don't exist in our cache yet, and value as a list of blocks waiting on them to arrive.
+    _readyBlocks = [];          // List of hashes of blocks that are marked as "ready for processing state". They are pulled from _anticipatedBlocks once their ancestor is done processing.
+    _bestBlock = "";            // Hash of the top-scoring block (i.e. the one with the deepest block chain "strength")
+    minDifficulty = 256**2;     // Minimum difficulty level of blocks to allow into our cache.
 
     // Only accept good RealBadBlocks into our cache!
-    addBlock(block, minDifficulty=256**2) {
+    addBlock(block, minDifficulty=this.minDifficulty) {
         try {
+            let hash = block.hash; // Save us the trouble of recomputing this tons of times!
             if (
                 // Make sure its a valid sealed block
                 (block instanceof RealBadBlock)
                 && block.isValid(minDifficulty)
 
                 // Also make sure we haven't seen it before
-                && !(block.hash in this._blocks)
+                && !(hash in this._blocks)
             ) {
-                this._blocks[block.hash] = block;
+                // This is a new block, so create the info object with just the block for now.
+                this._blocks[hash] = {"block": block};
+
+                // Check if this block is a genesis block or is linked to a block with a valid already-computed state
+                if ((block.blockHeight === 0) || ("state" in this._blocks[block.prevHash])) {
+                    this._readyBlocks.append(hash);
+                }
+                else {
+                    // Otherwise (can't compute the state yet), add this block to the "watch list" for later computation
+                    // once we fill in the missing links.
+                    if (!(block.prevHash in this._anticipatedBlocks)) this._anticipatedBlocks[block.prevHash] = [];
+                    this._anticipatedBlocks[block.prevHash].append(hash);
+
+                    // We can return here because nothing got added to _readyBlocks. It _should_ be empty.
+                    if (this._readyBlocks.length) console.error("Expected _readyBlocks to be empty but there were " + this._readyBlocks.length);
+                    return true;
+                }
+
+                // Update all the blocks in the ready list
+                // Note that updating them might add new ones to the ready list by pulling them from _anticipatedBlocks.
+                // We update those too until we run out.
+                while (this._readyBlocks.length) {
+                    let b = this.getBlock(this._readyBlocks.pop());
+                    let h = b.hash;
+
+                    if (b.blockHeight === 0) {
+                        // Genesis block!
+                        this._blocks[h].state = (new RealBadAccountState()).applyBlock(b);
+                    }
+                    // ASSUMPTION: Unless this is a genesis block, if it got into _readyBlocks then it's prevHash *is available* in our block cache!
+                    else if (this._blocks[b.prevHash].state === null) {
+                        // The previous state might be null, which means the chain was a bad state.
+                        // This is fine - just propagates this to all children blocks. But that's still a "valid state".
+                        this._blocks[h].state = null;
+                    }
+                    else {
+                        // Yep, we can compute its new state based on its old one.
+                        // The new state might be null if this block is bad.
+                        this._blocks[h].state = this._blocks[b.prevHash].state.applyBlock(b);
+                    }
+
+                    // Now that we updated a block, see if this lets us update any others, which will have us repeat the loop again.
+                    if (h in this._anticipatedBlocks) {
+                        this._readyBlocks.concat(this._anticipatedBlocks[h]);
+                        delete this._anticipatedBlocks[h];
+                    }
+
+                    // Also now that we updated a block, see if it is now the "best block".
+                    // This is the only place where we need to check for those updates, because we just added new state that we didn't have before.
+                    // NOTE: The "best" chain is weighed based on total difficulty to create it, rather than block height!
+                    //       Block height is just a human-readable metric and is used to detect genesis blocks.
+                    let bestState = this._blocks[this._bestBlock].state;
+                    let thisState = this._blocks[h].state;
+                    if ((thisState !== null) && (thisState.totalDifficulty > bestState.totalDifficulty)) this._bestBlock = h;
+                }
                 return true;
             }
-        } catch {
+        } catch (error) {
+            console.error(error);
             return false;
         }
     }
 
     getBlock(hash) {
         if (hash in this._blocks) {
-            return this._blocks[hash];
+            return this._blocks[hash].block;
         }
         return null;
     }
@@ -265,16 +324,5 @@ export class RealBadCache {
         }
 
         return chain;
-    }
-
-    // Check if a particular block has a valid connection to a genesis block
-    isConnected(block) {
-        for (
-            let currBlock = block;
-            currBlock !== null;
-            currBlock = this.getBlock(currBlock.prevHash)
-        ) {
-            if (currBlock.blockHeight === 0) return true;
-        }
     }
 }
