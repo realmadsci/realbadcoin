@@ -185,6 +185,9 @@ export class RealBadLedgerState {
         if (!(block.rewardDestination in s.accounts)) s.accounts[block.rewardDestination] = new RealBadAccountState();
         s.accounts[block.rewardDestination].balance += block.miningReward + s.transactionFees;
 
+        // Clear out transaction fees now that they are claimed
+        s.transactionFees = 0;
+
         return s;
     }
 }
