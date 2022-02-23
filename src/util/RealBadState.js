@@ -7,6 +7,8 @@ import {
     RealBadBlock
 } from './RealBadCoin';
 
+import { hexToBigint, bigintToHex } from 'bigint-conversion';
+
 export class RealBadAccountState {
     balance = 0;
     nonce = 0;
@@ -59,12 +61,17 @@ export class RealBadLedgerState {
     lastBlockHash = '00'.repeat(32);
     lastBlockHeight = -1;
 
+    // This is the sum of all difficulty metrics for all blocks in the chain leading up to this state.
+    // It is used to determine which chain represents the highest block.
+    totalDifficulty = 0n;
+
     static coerce({
         accounts,
         nfts,
         transactionFees,
         lastBlockHash,
         lastBlockHeight,
+        totalDifficulty,
     }) {
         let r = new RealBadLedgerState();
         Object.keys(accounts).forEach(k=>{
@@ -76,12 +83,21 @@ export class RealBadLedgerState {
         r.transactionFees = transactionFees;
         r.lastBlockHash = lastBlockHash;
         r.lastBlockHeight = lastBlockHeight;
+        r.totalDifficulty = totalDifficulty;
         return r;
     }
 
     // Return a deep copy clone of the state
     clone() {
-        return RealBadLedgerState.coerce(JSON.parse(JSON.stringify(this)));
+        // Shallow copy first:
+        let copy = Object.assign({}, this);
+        // JSON doesn't know what to do with BigInt, so we have to help it
+        copy.totalDifficulty = bigintToHex(copy.totalDifficulty);
+        // Force a total deep copy:
+        copy = RealBadLedgerState.coerce(JSON.parse(JSON.stringify(copy)));
+        // Fix totalDifficulty back:
+        copy.totalDifficulty = hexToBigint(copy.totalDifficulty);
+        return copy;
     }
 
     // Try and apply a transaction to the current state
@@ -170,6 +186,13 @@ export class RealBadLedgerState {
         if (block.blockHeight !== this.lastBlockHeight + 1) return null;
         s.lastBlockHash = block.hash;
         s.lastBlockHeight = block.blockHeight;
+
+        // The difficulty metric is proportional to how low the hash is relative to the "zero difficulty" level.
+        // The lower the hash as an integer, the bigger the difficulty.
+        let zeroDifficulty = 1n << 256n;
+        let hashAsInt = hexToBigint(s.lastBlockHash);
+        // When you sum this metric from two blocks, it is equivalent to having solved one block with twice the difficulty.
+        s.totalDifficulty = this.totalDifficulty + (zeroDifficulty / hashAsInt);
 
         // Attempt to apply all the transactions
         try {

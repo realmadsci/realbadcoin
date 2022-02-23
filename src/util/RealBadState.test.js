@@ -256,3 +256,40 @@ test('Transfers', async ()=>{
     expect(s3.accounts[id2].balance).toBe(s2.accounts[id2].balance + t3.txData.amount - t4.txData.amount - t4.transactionFee - t5.transactionFee);
     expect(s3.accounts[id].balance).toBe(s2.accounts[id].balance + reward - t3.txData.amount + t4.txData.amount + t4.transactionFee + t5.transactionFee);
 });
+
+test('Check accumulation of difficulty', async ()=>{
+    let a = new AccountMock();
+    let id = await a.getPubKeyHex();
+    let reward = 12345;
+    // Pick an easy target to save testing time, but hard enough that
+    // it isn't likely to happen by accident.
+    let difficulty = 256**2;
+
+    // Create a 2-block chain
+    let b1 = new RealBadBlock();
+    b1.difficulty = difficulty;
+    b1.miningReward = reward;
+    b1.rewardDestination = id;
+    expect(b1.tryToSeal(1e6)).toBe(true);
+    expect(b1.isSealed()).toBe(true);
+    expect(await b1.isValid()).toBe(true);
+
+    let b2 = new RealBadBlock();
+    b2.difficulty = difficulty;
+    b2.miningReward = reward;
+    b2.rewardDestination = id;
+    b2.prevHash = b1.hash;
+    b2.blockHeight = b1.blockHeight + 1;
+    expect(b2.tryToSeal(1e6)).toBe(true);
+    expect(b2.isSealed()).toBe(true);
+    expect(await b2.isValid()).toBe(true);
+
+    // Figure out the state at the end:
+    let s1 = (new RealBadLedgerState()).applyBlock(b1);
+    let s2 = s1.applyBlock(b2);
+
+    expect(s1.totalDifficulty).toBeGreaterThanOrEqual(difficulty);
+    expect(s2.totalDifficulty).toBeGreaterThanOrEqual(difficulty);
+    expect(s2.totalDifficulty).toBeGreaterThanOrEqual(s1.totalDifficulty);
+    expect(s2.totalDifficulty).toBeGreaterThanOrEqual(2*difficulty);
+});
