@@ -305,7 +305,7 @@ export class RealBadBlock {
             let hash = this.hash;
             let hashAsInt = hexToBigint(hash);
             if (hashAsInt < maxHash) {
-                return this.isSealed();
+                return this.isSealed(this.difficulty);
             }
             // We post-increment the nonce, so that repeated calls to this function don't waste any work.
             this.nonce++;
