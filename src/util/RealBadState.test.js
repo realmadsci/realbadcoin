@@ -8,6 +8,7 @@ import {
 } from './RealBadCoin';
 
 import {
+    RealBadCache,
     RealBadInvalidTransaction,
     RealBadLedgerState,
 } from './RealBadState';
@@ -292,4 +293,68 @@ test('Check accumulation of difficulty', async ()=>{
     expect(s2.totalDifficulty).toBeGreaterThanOrEqual(difficulty);
     expect(s2.totalDifficulty).toBeGreaterThanOrEqual(s1.totalDifficulty);
     expect(s2.totalDifficulty).toBeGreaterThanOrEqual(2*difficulty);
+});
+
+
+test('May the best chain win', async ()=>{
+    let a = new AccountMock();
+    let id = await a.getPubKeyHex();
+    let reward = 100;
+    // Prove that 2 blocks at twice as hard is more valuable than 3 blocks.
+    let difficulty1 = 256**1;
+    let difficulty2 = 256**2;
+
+    // Store all the blocks into a cache
+    let c = new RealBadCache();
+
+    // First chain of 3 "easy" blocks:
+    let prevHash = "00".repeat(32)
+    let prevHeight = -1;
+    for (let i = 0; i < 3; i++) {
+        let b = new RealBadBlock();
+        b.difficulty = difficulty1;
+        b.miningReward = reward;
+        b.rewardDestination = id;
+        b.prevHash = prevHash;
+        b.blockHeight = prevHeight + 1;
+        expect(b.tryToSeal(1e6)).toBe(true);
+        expect(b.isSealed(difficulty1)).toBe(true);
+        expect(await b.isValid(difficulty1)).toBe(true);
+
+        // Add it to our cache
+        c.addBlock(b, difficulty1);
+
+        prevHash = b.hash;
+        prevHeight = b.blockHeight;
+    }
+
+    let best1 = c._bestBlock;
+
+    // Second chain of 2 "hard" blocks
+    prevHash = "00".repeat(32)
+    prevHeight = -1;
+    for (let i = 0; i < 2; i++) {
+        let b = new RealBadBlock();
+        b.difficulty = difficulty2;
+        b.miningReward = reward;
+        b.rewardDestination = id;
+        b.prevHash = prevHash;
+        b.blockHeight = prevHeight + 1;
+        expect(b.tryToSeal(1e6)).toBe(true);
+        expect(b.isSealed()).toBe(true);
+        expect(await b.isValid()).toBe(true);
+
+        // Add it to our cache
+        c.addBlock(b);
+
+        prevHash = b.hash;
+        prevHeight = b.blockHeight;
+    }
+    let best2 = c._bestBlock;
+
+    expect(best1 === best2).toBe(false);
+    expect(c.getState(best2).totalDifficulty).toBeGreaterThanOrEqual(c.getState(best1).totalDifficulty);
+
+    expect(c.getChain(best1).length).toBe(3);
+    expect(c.getChain(best2).length).toBe(2);
 });

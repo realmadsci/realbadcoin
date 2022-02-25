@@ -241,13 +241,13 @@ export class RealBadCache {
 
                 // Check if this block is a genesis block or is linked to a block with a valid already-computed state
                 if ((block.blockHeight === 0) || ("state" in this._blocks[block.prevHash])) {
-                    this._readyBlocks.append(hash);
+                    this._readyBlocks.push(hash);
                 }
                 else {
                     // Otherwise (can't compute the state yet), add this block to the "watch list" for later computation
                     // once we fill in the missing links.
                     if (!(block.prevHash in this._anticipatedBlocks)) this._anticipatedBlocks[block.prevHash] = [];
-                    this._anticipatedBlocks[block.prevHash].append(hash);
+                    this._anticipatedBlocks[block.prevHash].push(hash);
 
                     // We can return here because nothing got added to _readyBlocks. It _should_ be empty.
                     if (this._readyBlocks.length) console.error("Expected _readyBlocks to be empty but there were " + this._readyBlocks.length);
@@ -263,7 +263,7 @@ export class RealBadCache {
 
                     if (b.blockHeight === 0) {
                         // Genesis block!
-                        this._blocks[h].state = (new RealBadAccountState()).applyBlock(b);
+                        this._blocks[h].state = (new RealBadLedgerState()).applyBlock(b);
                     }
                     // ASSUMPTION: Unless this is a genesis block, if it got into _readyBlocks then it's prevHash *is available* in our block cache!
                     else if (this._blocks[b.prevHash].state === null) {
@@ -287,9 +287,16 @@ export class RealBadCache {
                     // This is the only place where we need to check for those updates, because we just added new state that we didn't have before.
                     // NOTE: The "best" chain is weighed based on total difficulty to create it, rather than block height!
                     //       Block height is just a human-readable metric and is used to detect genesis blocks.
-                    let bestState = this._blocks[this._bestBlock].state;
-                    let thisState = this._blocks[h].state;
-                    if ((thisState !== null) && (thisState.totalDifficulty > bestState.totalDifficulty)) this._bestBlock = h;
+                    let thisState = this.getState(h);
+                    if (thisState !== null) {
+                        let bestState = this.getState(this._bestBlock);
+                        if (
+                            (bestState === null) ||
+                            (thisState.totalDifficulty > bestState.totalDifficulty)
+                        ) {
+                            this._bestBlock = h;
+                        }
+                    }
                 }
                 return true;
             }
@@ -306,6 +313,13 @@ export class RealBadCache {
         return null;
     }
 
+    getState(hash) {
+        if ((hash in this._blocks) && ("state" in this._blocks[hash])) {
+            return this._blocks[hash].state;
+        }
+        return null;
+    }
+
     // Return list with all blocks in the chain.
     // Stops when it runs out of previous blocks (or hits a genesis block).
     getChain(hash) {
@@ -313,14 +327,14 @@ export class RealBadCache {
         let currHash = hash;
         let currBlock = this.getBlock(currHash);
 
-        while (currBlock != null) {
+        while (currBlock !== null) {
             chain.unshift(currHash);
 
             // Stop when we hit genesis block
-            if (currBlock.blockHeight) break;
+            if (currBlock.blockHeight === 0) break;
 
             currHash = currBlock.prevHash;
-            currBlock = this.getBlock(currBlock.prevHash);
+            currBlock = this.getBlock(currHash);
         }
 
         return chain;
