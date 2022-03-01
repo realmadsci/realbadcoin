@@ -114,24 +114,6 @@ export class RealBadNftTransfer {
     // Return null if it doesn't work or if the resulting object is invalid.
     static coerce({
         type,
-        nftData,
-        nftId,
-    }) {
-        try {
-            let r = new RealBadNftMint();
-            r.type = type;
-            r.nftData = nftData;
-            r.nftId = nftId;
-            return r.isValid() ? r : null;
-        } catch {
-            return false;
-        }
-    }
-
-    // Accept an object and attempt to convert it into a valid object of this type.
-    // Return null if it doesn't work or if the resulting object is invalid.
-    static coerce({
-        type,
         nftId,
         nftNonce,
         destination,
