@@ -189,10 +189,8 @@ export class RealBadLedgerState {
 
         // The difficulty metric is proportional to how low the hash is relative to the "zero difficulty" level.
         // The lower the hash as an integer, the bigger the difficulty.
-        let zeroDifficulty = 1n << 256n;
-        let hashAsInt = hexToBigint(s.lastBlockHash);
         // When you sum this metric from two blocks, it is equivalent to having solved one block with twice the difficulty.
-        s.totalDifficulty = this.totalDifficulty + (zeroDifficulty / hashAsInt);
+        s.totalDifficulty = this.totalDifficulty + RealBadBlock.difficultyMetric(s.lastBlockHash);
 
         // Attempt to apply all the transactions
         try {

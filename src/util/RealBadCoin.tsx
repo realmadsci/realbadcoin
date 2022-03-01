@@ -270,6 +270,14 @@ export class RealBadBlock {
         return bytesToHex(sha256(block_val));
     }
 
+    static difficultyMetric(h) {
+        // The difficulty metric is proportional to how low the hash is relative to the "zero difficulty" level.
+        // The lower the hash as an integer, the bigger the difficulty.
+        let zeroDifficulty = 1n << 256n;
+        let hashAsInt = hexToBigint(h);
+        return zeroDifficulty / hashAsInt;
+    }
+
     isSealed(minDifficulty = 256**2) {
         let difficulty = Math.max(minDifficulty, this.difficulty);
         let maxHash = (1n << 256n) / BigInt(difficulty);

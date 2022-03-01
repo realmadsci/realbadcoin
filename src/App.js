@@ -6,6 +6,26 @@ import Paper from '@mui/material/Paper';
 
 import EccApp from './EccDemo';
 import PeerApp from './PeerDemo';
+import BlockView from './BlockView';
+import TransactionView from './TransactionView';
+
+import {
+  RealBadCoinTransfer,
+  RealBadNftMint,
+  RealBadNftTransfer,
+  RealBadTransaction,
+  RealBadBlock
+} from './util/RealBadCoin.tsx';
+
+function makeBlock() {
+  let block = new RealBadBlock();
+  // Pick an easy target to save testing time, but hard enough that
+  // it isn't likely to happen by accident.
+  block.difficulty = 256**2;
+  block.rewardDestination = "FE39C1887F08F1B7CFB9B6034AC01F6DD06F721FE370D3CD1F7621045387C230".toLowerCase();
+  block.tryToSeal(1e6);
+  return block;
+}
 
 function App() {
   const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
@@ -35,6 +55,12 @@ function App() {
       </Paper>
       <Paper>
         <PeerApp />
+      </Paper>
+      <Paper>
+        <BlockView block={makeBlock()} />
+      </Paper>
+      <Paper>
+        <TransactionView />
       </Paper>
     </ThemeProvider>
   );
