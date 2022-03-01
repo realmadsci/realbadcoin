@@ -27,7 +27,7 @@ import {
     RealBadNftTransfer,
     RealBadTransaction,
     RealBadBlock
-} from './util/RealBadCoin';
+} from './util/RealBadCoin.tsx';
 
 // For the HashWorker:
 import * as Comlink from 'comlink';
