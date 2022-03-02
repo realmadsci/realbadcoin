@@ -328,7 +328,7 @@ test('May the best chain win', async ()=>{
         prevHeight = b.blockHeight;
     }
 
-    let best1 = c._bestBlock;
+    let best1 = c.bestBlockHash;
 
     // Second chain of 2 "hard" blocks
     prevHash = "00".repeat(32)
@@ -350,7 +350,7 @@ test('May the best chain win', async ()=>{
         prevHash = b.hash;
         prevHeight = b.blockHeight;
     }
-    let best2 = c._bestBlock;
+    let best2 = c.bestBlockHash;
 
     expect(best1 === best2).toBe(false);
     expect(c.getState(best2).totalDifficulty).toBeGreaterThanOrEqual(c.getState(best1).totalDifficulty);

@@ -17,19 +17,22 @@ export class RealBadCoinTransfer {
     destination = null; // Destination account ID (public key)
     amount = 0;         // Amount of RealBadCoin to transfer (floating point number)
 
-    // Accept an object and attempt to convert it into a valid object of this type.
-    // Return null if it doesn't work or if the resulting object is invalid.
+    // Accept an object and attempt to convert it into an object of this type.
+    // Return null if it doesn't work.
+    // The resulting object is not guaranteed to be valid!
     static coerce({
         type,
         destination,
         amount,
     }) {
         try {
+            if (type !== "coin_transfer") return null;
+
             let r = new RealBadCoinTransfer();
             r.type = type;
             r.destination = destination;
             r.amount = amount;
-            return r.isValid() ? r : null;
+            return r;
         } catch {
             return null;
         }
@@ -66,19 +69,22 @@ export class RealBadNftMint {
         return bytesToHex(sha256(JSON.stringify(this.nftData)));
     }
 
-    // Accept an object and attempt to convert it into a valid object of this type.
-    // Return null if it doesn't work or if the resulting object is invalid.
+    // Accept an object and attempt to convert it into an object of this type.
+    // Return null if it doesn't work.
+    // The resulting object is not guaranteed to be valid!
     static coerce({
         type,
         nftData,
         nftId,
     }) {
         try {
+            if (type !== "nft_mint") return null;
+
             let r = new RealBadNftMint();
             r.type = type;
             r.nftData = nftData;
             r.nftId = nftId;
-            return r.isValid() ? r : null;
+            return r;
         } catch {
             return null;
         }
@@ -110,8 +116,9 @@ export class RealBadNftTransfer {
     nftNonce = 0;       // Incrementing number specifying transfer count for this NFT. Must be sequentually incrementing or the transaction will be ignored.
     destination = null; // Destination account ID (public key) for the new owner of the NFT.
 
-    // Accept an object and attempt to convert it into a valid object of this type.
-    // Return null if it doesn't work or if the resulting object is invalid.
+    // Accept an object and attempt to convert it into an object of this type.
+    // Return null if it doesn't work.
+    // The resulting object is not guaranteed to be valid!
     static coerce({
         type,
         nftId,
@@ -119,12 +126,14 @@ export class RealBadNftTransfer {
         destination,
     }) {
         try {
+            if (type !== "nft_transfer") return null;
+
             let r = new RealBadNftTransfer();
             r.type = type;
             r.nftId = nftId;
             r.nftNonce = nftNonce;
             r.destination = destination;
-            return r.isValid() ? r : null;
+            return r;
         } catch {
             return null;
         }
@@ -175,9 +184,10 @@ export class RealBadTransaction {
         return bytesToHex(sha256(tx_val));
     }
 
-    // Accept an object and attempt to convert it into a valid object of this type.
-    // Return null if it doesn't work or if the resulting object is invalid.
-    static async coerce({
+    // Accept an object and attempt to convert it into an object of this type.
+    // Return null if it doesn't work.
+    // The resulting object is not guaranteed to be valid!
+    static coerce({
         source,
         sourceNonce,
         timestamp,
@@ -201,7 +211,7 @@ export class RealBadTransaction {
                 RealBadNftMint.coerce(txData) ||
                 RealBadNftTransfer.coerce(txData);
 
-            return (await r.isValid()) ? r : null;
+            return r;
         } catch {
             return null;
         }
@@ -303,9 +313,10 @@ export class RealBadBlock {
         return false;
     }
 
-    // Accept an object and attempt to convert it into a valid object of this type.
-    // Return null if it doesn't work or if the resulting object is invalid.
-    static async coerce({
+    // Accept an object and attempt to convert it into an object of this type.
+    // Return null if it doesn't work.
+    // The resulting object is not guaranteed to be valid!
+    static coerce({
         prevHash,
         blockHeight,
         timestamp,
@@ -320,15 +331,15 @@ export class RealBadBlock {
             r.prevHash = prevHash;
             r.blockHeight = blockHeight;
             r.timestamp = new Date(timestamp);
-            r.transactions = await Promise.all(transactions.map(async (t)=>{
-                return await RealBadTransaction.coerce(t)
-            }));
+            r.transactions = transactions.map((t)=>{
+                return RealBadTransaction.coerce(t)
+            });
             r.miningReward = miningReward;
             r.rewardDestination = rewardDestination;
             r.difficulty = difficulty;
             r.nonce = nonce;
 
-            return (await r.isValid()) ? r : null;
+            return r;
         } catch (error) {
             console.error(error);
             return null;

@@ -5,9 +5,11 @@ import {
     RealBadNftTransfer,
     RealBadTransaction,
     RealBadBlock
-} from './RealBadCoin';
+} from './RealBadCoin.tsx';
 
 import { hexToBigint, bigintToHex } from 'bigint-conversion';
+
+import { EventEmitter } from 'events';
 
 export class RealBadAccountState {
     balance = 0;
@@ -216,11 +218,23 @@ export class RealBadLedgerState {
 // Keep track of a set of blocks and provide helper functions for identifying the longest chain, etc.
 // NOTE: This is a LOCAL data structure and is not something that can be trusted if it is sent from elsewhere!
 export class RealBadCache {
-    _blocks = {};               // Key/value pairs with key as block hash and full state of system as the value
-    _anticipatedBlocks = {};    // Key/value pairs with key as "prevHash" for blocks that don't exist in our cache yet, and value as a list of blocks waiting on them to arrive.
-    _readyBlocks = [];          // List of hashes of blocks that are marked as "ready for processing state". They are pulled from _anticipatedBlocks once their ancestor is done processing.
-    _bestBlock = "";            // Hash of the top-scoring block (i.e. the one with the deepest block chain "strength")
-    minDifficulty = 256**2;     // Minimum difficulty level of blocks to allow into our cache.
+    constructor() {
+        this._blocks = {};               // Key/value pairs with key as block hash and full state of system as the value
+        this._anticipatedBlocks = {};    // Key/value pairs with key as "prevHash" for blocks that don't exist in our cache yet, and value as a list of blocks waiting on them to arrive.
+        this._readyBlocks = [];          // List of hashes of blocks that are marked as "ready for processing state". They are pulled from _anticipatedBlocks once their ancestor is done processing.
+        this._bestBlock = null;          // Hash of the top-scoring block (i.e. the one with the deepest block chain "strength")
+        this.minDifficulty = 256**2;     // Minimum difficulty level of blocks to allow into our cache.
+        this._updateNotifier = new EventEmitter();
+    }
+
+    // Add subscribe/unsub options for tracking when new blocks arrive
+    subscribe(callback) {
+        this._updateNotifier.addListener('new_block', callback);
+    }
+
+    unsubscribe(callback) {
+        this._updateNotifier.removeListener('new_block', callback);
+    }
 
     // Only accept good RealBadBlocks into our cache!
     addBlock(block, minDifficulty=this.minDifficulty) {
@@ -247,9 +261,7 @@ export class RealBadCache {
                     if (!(block.prevHash in this._anticipatedBlocks)) this._anticipatedBlocks[block.prevHash] = [];
                     this._anticipatedBlocks[block.prevHash].push(hash);
 
-                    // We can return here because nothing got added to _readyBlocks. It _should_ be empty.
                     if (this._readyBlocks.length) console.error("Expected _readyBlocks to be empty but there were " + this._readyBlocks.length);
-                    return true;
                 }
 
                 // Update all the blocks in the ready list
@@ -296,12 +308,18 @@ export class RealBadCache {
                         }
                     }
                 }
+                this._updateNotifier.emit('new_block');
                 return true;
             }
         } catch (error) {
             console.error(error);
             return false;
         }
+    }
+
+    // Return hash of the best block that we know about:
+    get bestBlockHash() {
+        return this._bestBlock;
     }
 
     getBlock(hash) {

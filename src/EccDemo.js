@@ -20,27 +20,12 @@ import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import * as ed from '@noble/ed25519';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils';
 
-// Import the data types for manipulating coin stuff
-import {
-    RealBadCoinTransfer,
-    RealBadNftMint,
-    RealBadNftTransfer,
-    RealBadTransaction,
-    RealBadBlock
-} from './util/RealBadCoin.tsx';
-
-// For the HashWorker:
-import * as Comlink from 'comlink';
-
-
 function pad(n, length = 64, base = 16) {
     //return n.toString(base).padStart(length, '0');
     return n.toString();
 }
 
-const HashWorker = Comlink.wrap(new Worker(new URL("./util/HashWorker.js", import.meta.url)));
-
-class AccountIdentity {
+export class AccountIdentity {
 
     constructor() {
         this._privKey = null;
@@ -62,9 +47,6 @@ class AccountIdentity {
 
         // Compute and set the public key
         this._pubKey = await ed.getPublicKey(this._privKey);
-
-        // Create a dummy hashworker
-        this._hashworker = await new HashWorker(0);
     }
 
     async getPubKeyHex() {
@@ -81,16 +63,12 @@ class AccountIdentity {
         await this._initialized;
         const sig = await ed.sign(msg, this._privKey);
 
-        //HACK: Do some busy work here to simulate taking a while to compute the sig and practice using WebWorker
-        await this._hashworker.increment(100000000);
-        console.log("Count = " + await this._hashworker.counter);
-
         // Return the signature:
         return sig;
     }
 }
 
-class EccApp extends React.Component {
+export class EccApp extends React.Component {
     constructor() {
         super();
 
@@ -178,5 +156,3 @@ class EccApp extends React.Component {
         );
     }
 }
-
-export default EccApp;
