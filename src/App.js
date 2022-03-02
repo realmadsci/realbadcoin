@@ -1,4 +1,6 @@
 import * as React from 'react';
+
+import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 
 import {
@@ -19,17 +21,6 @@ import {
 import {
   RealBadCache
 } from './util/RealBadState.tsx';
-
-function makeBlock() {
-  let block = new RealBadBlock();
-  // Pick an easy target to save testing time, but hard enough that
-  // it isn't likely to happen by accident.
-  block.difficulty = 256 ** 2;
-  block.rewardDestination = "FE39C1887F08F1B7CFB9B6034AC01F6DD06F721FE370D3CD1F7621045387C230".toLowerCase();
-  block.tryToSeal(1e6);
-  //expect(block.isSealed()).toBe(true);
-  return block;
-}
 
 const MineWorker = Comlink.wrap(new Worker(new URL("./util/MineWorker.js", import.meta.url)));
 
@@ -133,17 +124,23 @@ class App extends React.Component {
 
   render() {
     return (
-      <>
-        <Paper>
+      <Box sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        p: 1,
+        rowGap: 1,
+        minWidth: 350,
+      }}>
+        <Paper elevation={8}>
           <AccountView pubKeyHex={this.state.pubKeyHex} privKeyHex={this.state.privKeyHex} lstate={this.state.topLState} />
         </Paper>
-        <Paper>
+        <Paper elevation={8}>
           <BlockView hash={this.state.topHash} block={this.state.topBlock} lstate={this.state.topLState} />
         </Paper>
-        <Paper>
+        <Paper elevation={8}>
           <PeerApp />
         </Paper>
-      </>
+      </Box>
     );
   }
 }
