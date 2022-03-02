@@ -138,13 +138,10 @@ class App extends React.Component {
           <AccountView pubKeyHex={this.state.pubKeyHex} privKeyHex={this.state.privKeyHex} lstate={this.state.topLState} />
         </Paper>
         <Paper>
-          <PeerApp />
-        </Paper>
-        <Paper>
           <BlockView hash={this.state.topHash} block={this.state.topBlock} lstate={this.state.topLState} />
         </Paper>
         <Paper>
-          <TransactionView />
+          <PeerApp />
         </Paper>
       </>
     );
