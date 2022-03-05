@@ -2,13 +2,14 @@
 import * as React from 'react';
 
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
 import InputAdornment from '@mui/material/InputAdornment';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import TextField from '@mui/material/TextField';
+import Stack from '@mui/material/Stack';
 
 import CloudRoundedIcon from '@mui/icons-material/CloudRounded';
 import SensorsRoundedIcon from '@mui/icons-material/SensorsRounded';
@@ -47,7 +48,7 @@ class ConnectionManager {
     }
 
     _notifyPeerStatusChange(peer, newState) {
-        this.peers[peer].state = newState;
+        if (newState !== "deleted") this.peers[peer].state = newState;
         console.log(this.peers);
         this._updateNotifier.emit('status_change');
     }
@@ -64,8 +65,8 @@ class ConnectionManager {
         const a = (388).toString(36).toLowerCase() + (function () { var Z = Array.prototype.slice.call(arguments), H = Z.shift(); return Z.reverse().map(function (Q, P) { return String.fromCharCode(Q - H - 7 - P) }).join('') })(29, 140, 147, 144, 144) + (28210).toString(36).toLowerCase() + (1203767).toString(36).toLowerCase().split('').map(function (r) { return String.fromCharCode(r.charCodeAt() + (-39)) }).join('') + (596).toString(36).toLowerCase() + (function () { var o = Array.prototype.slice.call(arguments), i = o.shift(); return o.reverse().map(function (L, H) { return String.fromCharCode(L - i - 38 - H) }).join('') })(0, 101, 104, 101, 99, 97, 151, 149, 151, 151, 157, 154, 147, 147) + (7482579).toString(36).toLowerCase() + (function () { var L = Array.prototype.slice.call(arguments), w = L.shift(); return L.reverse().map(function (c, N) { return String.fromCharCode(c - w - 39 - N) }).join('') })(4, 153, 146);
         this.myId = sessionStorage.getItem("peer_id") || generateSlug(2).replace("-", "_");
         this.server = new Peer(this.myId, {
-            secure: true,
-            debug: 3,
+            //secure: true,
+            //debug: 3,
             config: {
                 'iceServers': [
                     { url: 'stun:coinpeers.realmadsci.com' },
@@ -128,14 +129,15 @@ class ConnectionManager {
             conn: conn,
             initiator: false,
         }
+        this._notifyPeerStatusChange(conn.peer, "connected");
 
-        conn.on('data', (data) => {
-            console.log("Data from " + conn.peer + " = " + data.toString());
-        });
+        conn.on('close', () => {this._handlePeerClose(conn.peer)});
+        conn.on('error', (err) => {this._handlePeerError(conn.peer, err)});
+        conn.on('data', (data) => {this._handlePeerData(conn.peer, data)});
     }
 
     connectToPeer(peer_id) {
-        console.error("Trying to connect to peer_id = " + peer_id)
+        console.log("Trying to connect to peer_id = " + peer_id)
         const conn = this.server.connect(peer_id, { reliable: true });
 
         this.peers[peer_id] = {
@@ -150,25 +152,51 @@ class ConnectionManager {
             console.log("I opened a connection to " + peer_id  + ". Reliable = " + conn.reliable);
         });
 
-        conn.on('close', () => {
-            console.log("The connection to " + conn.peer + " is closed!");
-            let prevState = this.peers[conn.peer].state;
-            this._notifyPeerStatusChange(conn.peer, "disconnected");
+        conn.on('close', () => {this._handlePeerClose(conn.peer)});
+        conn.on('error', (err) => {this._handlePeerError(conn.peer, err)});
+        conn.on('data', (data) => {this._handlePeerData(conn.peer, data)});
+    }
 
+    _handlePeerClose(peer_id) {
+        console.log("The connection to " + peer_id + " is closed!");
+        let prevState = this.peers[peer_id].state;
 
-            // See if we want to try and reconect:
-            if (prevState !== "quitting") {
-                console.log("Got disconnected. Trying to reconnect!");
-                this.server.reconnect();
-                this._notifyPeerStatusChange(conn.peer, "reconnecting");
+        // If we disconnected on purpose, just drop this connection from the list.
+        if (prevState === "quitting") {
+            delete this.peers[peer_id];
+            this._notifyPeerStatusChange(peer_id, "deleted");
+        }
+        else {
+            this._notifyPeerStatusChange(peer_id, "disconnected");
+        }
+    }
+
+    _handlePeerError(peer_id, error) {
+        if (this.peers[peer_id].initiator) {
+            console.error("Got error connecting to " + peer_id + ": " + error);
+        }
+        else {
+            console.error("Got error from connection to " + peer_id + ": " + error);
+        }
+
+        this._notifyPeerStatusChange(peer_id, "disconnected");
+    }
+
+    _handlePeerData(peer_id, data) {
+        console.log("Data from " + peer_id + " = " + data.toString());
+    }
+
+    disconnectPeer(peer_id) {
+        if (peer_id in this.peers) {
+            if (this.peers[peer_id].state !== "connected") {
+                delete this.peers[peer_id];
+                this._notifyPeerStatusChange(peer_id, "deleted");
             }
-
-        });
-
-        conn.on('error', (err) => {
-            console.error("Got error connecting to " + conn.peer + ": " + err);
-            this._notifyPeerStatusChange(conn.peer, "disconnected");
-        });
+            else {
+                this._notifyPeerStatusChange(peer_id, "quitting");
+                this.peers[peer_id].conn.close();
+            }
+        }
     }
 
     sendToPeer(peer_id, msgObj) {
@@ -198,15 +226,22 @@ class PeerApp extends React.Component {
 
         this.state = {
             myId: '',
+            myStatus: '',
+            peerInfo: [],
             friendId: '',
-            message: '',
-            messages: []
         }
     }
 
     _syncConnectionState() {
         this.setState({
-            myId: this._conn.myId + ":" + this._conn.state,
+            myId: this._conn.myId,
+            myStatus: this._conn.state,
+            peerInfo: Object.keys(this._conn.peers).map((peer, i)=>{
+                return {
+                    id: peer,
+                    state: this._conn.peers[peer].state,
+                };
+            }),
         });
     }
 
@@ -218,81 +253,64 @@ class PeerApp extends React.Component {
         this._conn.connectToServer();
     }
 
-    _send() {
-        this._conn.sendToPeer(this.state.friendId, this.state.message);
-        this.setState({message: ''});
-    }
+//    componentWillUnmount() {
+//        this._conn.disconnectFromServer();
+//    }
+
+//    _send() {
+//        this._conn.sendToPeer(this.state.friendId, this.state.message);
+//        this.setState({message: ''});
+//    }
 
     render() {
         return (
-            <div className="wrapper">
-                <div className="col">
-                    <Box
-                        component="form"
-                        sx={{
-                            '& > :not(style)': { m: 1, width: '25ch' },
-                        }}
-                        noValidate
-                        autoComplete="off"
-                    >
-                        <List component="div" disablePadding>
-                            <ListItem>
-                                <ListItemIcon>
-                                    <SensorsRoundedIcon />
-                                </ListItemIcon>
-                                <ListItemText
-                                    primary="Network ID"
-                                    secondary={this.state.myId}
-                                />
-                            </ListItem>
-                        </List>
-
-                        <TextField
-                            label="Friend ID"
-                            variant="filled"
-                            InputProps={{
-                                startAdornment: (
-                                  <InputAdornment position="start">
-                                    <CloudRoundedIcon />
-                                  </InputAdornment>
-                                ),
-                            }}
-                            value={this.state.friendId}
-                            onChange={e => { this.setState({ friendId: e.target.value }); }}
-                            onKeyUp={e => {
-                                if (e.key==='Enter') {
-                                    this._tryConnectPeer();
-                                }
-                            }}
+            <>
+                <List component="div" disablePadding>
+                    <ListItem>
+                        <ListItemIcon>
+                            <SensorsRoundedIcon />
+                        </ListItemIcon>
+                        <ListItemText
+                            primary="Network ID"
+                            secondary={this.state.myId}
                         />
+                    </ListItem>
+                </List>
 
-                        <TextField
-                            label="Message"
-                            variant="filled"
-                            value={this.state.message}
-                            onChange={e => { this.setState({ message: e.target.value }); }}
-                            onKeyUp={e => {
-                                if (e.key==='Enter') {
-                                    this._send();
-                                }
-                            }}
-                        />
-
-                    </Box>
-                    <dl>
-                        {
-                            this.state.messages.map((message, i) => {
-                                return (
-                                    <>
-                                        <dt>{message.sender}</dt>
-                                        <dd>{message.message}</dd>
-                                    </>
-                                )
-                            })
+                <TextField
+                    label="Friend ID"
+                    variant="filled"
+                    InputProps={{
+                        startAdornment: (
+                            <InputAdornment position="start">
+                            <CloudRoundedIcon />
+                            </InputAdornment>
+                        ),
+                    }}
+                    value={this.state.friendId}
+                    onChange={e => { this.setState({ friendId: e.target.value }); }}
+                    onKeyUp={e => {
+                        if (e.key==='Enter') {
+                            this._tryConnectPeer();
                         }
-                    </dl>
-                </div>
-            </div>
+                    }}
+                />
+                <Stack direction="row" spacing={1}>
+                    {
+                        this.state.peerInfo.map((p, i)=>{
+                            return (
+                            <Chip
+                                key={p.id}
+                                label={p.id}
+                                onDelete={()=>{
+                                    this._conn.disconnectPeer(p.id);
+                                }}
+                                color={(p.state === "connected") ? "success" : undefined}
+                            />)
+                        })
+                    }
+                </Stack>
+            </>
         );
     }
 }
