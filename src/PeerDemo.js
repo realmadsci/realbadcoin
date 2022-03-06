@@ -9,7 +9,6 @@ import ListItem from '@mui/material/ListItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import TextField from '@mui/material/TextField';
-import Stack from '@mui/material/Stack';
 
 import CloudRoundedIcon from '@mui/icons-material/CloudRounded';
 import SensorsRoundedIcon from '@mui/icons-material/SensorsRounded';
@@ -28,6 +27,7 @@ class ConnectionManager {
         this.myId = null;
         this.server = null;
         this.peers = {};
+        this.peerHistory = [];
         this.state = "disconnected";
         this._updateNotifier = new EventEmitter();
     }
@@ -49,6 +49,13 @@ class ConnectionManager {
 
     _notifyPeerStatusChange(peer, newState) {
         if (newState !== "deleted") this.peers[peer].state = newState;
+        if (newState === "connected") {
+            // Keep track of previously connected peers so we can try to dial them up again next time!
+            this.peerHistory.push(peer);
+            // Only keep unique ones!
+            this.peerHistory = this.peerHistory.filter((e, i) => this.peerHistory.indexOf(e) === i);
+            sessionStorage.setItem("peer_history", JSON.stringify(this.peerHistory));
+        }
         console.log(this.peers);
         this._updateNotifier.emit('status_change');
     }
@@ -64,6 +71,7 @@ class ConnectionManager {
         //https://anseki.github.io/gnirts/
         const a = (388).toString(36).toLowerCase() + (function () { var Z = Array.prototype.slice.call(arguments), H = Z.shift(); return Z.reverse().map(function (Q, P) { return String.fromCharCode(Q - H - 7 - P) }).join('') })(29, 140, 147, 144, 144) + (28210).toString(36).toLowerCase() + (1203767).toString(36).toLowerCase().split('').map(function (r) { return String.fromCharCode(r.charCodeAt() + (-39)) }).join('') + (596).toString(36).toLowerCase() + (function () { var o = Array.prototype.slice.call(arguments), i = o.shift(); return o.reverse().map(function (L, H) { return String.fromCharCode(L - i - 38 - H) }).join('') })(0, 101, 104, 101, 99, 97, 151, 149, 151, 151, 157, 154, 147, 147) + (7482579).toString(36).toLowerCase() + (function () { var L = Array.prototype.slice.call(arguments), w = L.shift(); return L.reverse().map(function (c, N) { return String.fromCharCode(c - w - 39 - N) }).join('') })(4, 153, 146);
         this.myId = sessionStorage.getItem("peer_id") || generateSlug(2).replace("-", "_");
+        this.peerHistory = JSON.parse(sessionStorage.getItem("peer_history") || "[]");
         this.server = new Peer(this.myId, {
             //secure: true,
             //debug: 3,
@@ -95,6 +103,9 @@ class ConnectionManager {
 
             this.myId = id; // This *should* already match, but just in case...
             sessionStorage.setItem("peer_id", id);
+
+            // Now try and pull in our old friends!
+            this.peerHistory.forEach(p=>{this.connectToPeer(p);});
 
             // Now that we've connected once, set a new "disconnect" handler to just try and reconnect.
             this.server.on('disconnected', () => {
@@ -295,7 +306,7 @@ class PeerApp extends React.Component {
                         }
                     }}
                 />
-                <Stack direction="row" spacing={1}>
+                <Box spacing={1}>
                     {
                         this.state.peerInfo.map((p, i)=>{
                             return (
@@ -309,7 +320,7 @@ class PeerApp extends React.Component {
                             />)
                         })
                     }
-                </Stack>
+                </Box>
             </>
         );
     }
