@@ -237,7 +237,7 @@ export class RealBadCache {
     }
 
     // Only accept good RealBadBlocks into our cache!
-    addBlock(block, minDifficulty=this.minDifficulty) {
+    addBlock(block, source, wasRequested, minDifficulty=this.minDifficulty) {
         try {
             let hash = block.hash; // Save us the trouble of recomputing this tons of times!
             if (
@@ -248,11 +248,14 @@ export class RealBadCache {
                 // Also make sure we haven't seen it before
                 && !(hash in this._blocks)
             ) {
-                // This is a new block, so create the info object with just the block for now.
-                this._blocks[hash] = {"block": block};
+                // This is a new block, so create the info object with just the block and originator for now.
+                this._blocks[hash] = {
+                    block: block,
+                    source: source,
+                };
 
                 // Check if this block is a genesis block or is linked to a block with a valid already-computed state
-                if ((block.blockHeight === 0) || ("state" in this._blocks[block.prevHash])) {
+                if ((block.blockHeight === 0) || ((block.prevHash in this._blocks) && ("state" in this._blocks[block.prevHash]))) {
                     this._readyBlocks.push(hash);
                 }
                 else {
@@ -308,7 +311,7 @@ export class RealBadCache {
                         }
                     }
                 }
-                this._updateNotifier.emit('new_block', hash);
+                this._updateNotifier.emit('new_block', hash, wasRequested);
                 return true;
             }
         } catch (error) {
@@ -325,6 +328,13 @@ export class RealBadCache {
     getBlock(hash) {
         if (hash in this._blocks) {
             return this._blocks[hash].block;
+        }
+        return null;
+    }
+
+    getSource(hash) {
+        if (hash in this._blocks) {
+            return this._blocks[hash].source;
         }
         return null;
     }

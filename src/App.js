@@ -39,31 +39,82 @@ class App extends React.Component {
 
     this._id = new AccountIdentity();
     this._cache = new RealBadCache();
-    this._cache.subscribe((hash)=>{this.cacheHasNewBlock(hash)});
+    this._cache.subscribe((hash, req)=>{this.cacheHasNewBlock(hash, req)});
     this._conn = new ConnectionManager();
-    this._conn.subscribeData((p, d)=>{this.handlePeerBlock(p,d)});
+    this._conn.subscribeData((p, d)=>{this.handlePeerData(p,d)});
     this._mineworker = null;
   }
 
-  handlePeerBlock(peer, data) {
-    this._cache.addBlock(RealBadBlock.coerce(JSON.parse(data)));
+  handlePeerData(peer, data) {
+    let d = JSON.parse(data);
+    if ("newBlock" in d) {
+      // Whenever we see a new block arrival, see if we can add it to the cache:
+      let block = RealBadBlock.coerce(d.newBlock);
+      if (this._cache.addBlock(block, peer, false)) {
+
+        // If the new block was good but still needs a parent, then send a request to try to fetch it's parent:
+        let hash = block.hash;
+        let oldestParent = this._cache.getBlock(this._cache.getChain(hash)[0]);
+        if (oldestParent.blockHeight !== 0) {
+          this._conn.sendToPeer(peer, JSON.stringify({
+            requestBlocks: {
+              have: this._cache.bestBlockHash,
+              want: oldestParent.prevHash,
+            }
+          }));
+        }
+      }
+    }
+
+    // Shiny new blocks that we requested have arrived!
+    if ("blockList" in d) {
+      d.blockList.forEach((b, i)=>{
+        this._cache.addBlock(
+          RealBadBlock.coerce(b),
+          peer,
+          true, // We requested these!
+        );
+      });
+    }
+
+    // Somebody wants to know what we know
+    if ("requestBlocks" in d) {
+      let haveChain = this._cache.getChain(d.requestBlocks?.have);
+      let wantChain = this._cache.getChain(d.requestBlocks?.want);
+      let resultChain = wantChain.filter((h, i)=>(!haveChain.includes(h)));
+
+      // Get the blocks and send them
+      let blocks = resultChain.map((h, i)=>this._cache.getBlock(h));
+      this._conn.sendToPeer(peer, JSON.stringify({
+        blockList: blocks,
+      }));
+    }
   }
 
   // Set this up as a callback from the cache when
   // it gets any new blocks
-  cacheHasNewBlock(hash) {
-    // We just got this block and it's new, so announce it to our friends
-    this._conn.broadcast(JSON.stringify(this._cache.getBlock(hash)));
+  cacheHasNewBlock(hash, wasRequested) {
+    // Whenever a new block comes along AND we didn't request it, broadcast it out to all our friends:
+    if (!wasRequested) {
+      this._conn.broadcast(
+        JSON.stringify({
+          newBlock: this._cache.getBlock(hash),
+        }),
+        [this._cache.getSource(hash)], // Don't broadcast BACK to the person who told us about this!
+      );
+    }
 
-    console.log("Best block is " + this._cache.bestBlockHash + " at height " + this._cache.getBlock(this._cache.bestBlockHash).blockHeight);
+    if (this._cache.bestBlockHash !== null) {
+      console.log("Best block is " + this._cache.bestBlockHash + " at height " + this._cache.getBlock(this._cache.bestBlockHash).blockHeight);
 
-    // Automatically jump to the selected state
-    let topHash = this._cache.bestBlockHash;
-    this.setState({
-      topHash: topHash,
-      topBlock: this._cache.getBlock(topHash),
-      topLState: this._cache.getState(topHash),
-    });
+      // Automatically jump to the selected state
+      let topHash = this._cache.bestBlockHash;
+      this.setState({
+        topHash: topHash,
+        topBlock: this._cache.getBlock(topHash),
+        topLState: this._cache.getState(topHash),
+      });
+    }
   }
 
   async miningLoop(destination) {
@@ -108,7 +159,7 @@ class App extends React.Component {
         if (b !== null) {
           // We got one!
           // Add it to our cache
-          this._cache.addBlock(RealBadBlock.coerce(b));
+          this._cache.addBlock(RealBadBlock.coerce(b), this._conn.myId);
         }
       }
     }

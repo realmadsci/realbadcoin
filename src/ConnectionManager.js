@@ -227,10 +227,13 @@ export class ConnectionManager {
         }
     }
 
-    broadcast(data) {
+    broadcast(data, excluded=[]) {
         let good_connections = Object.keys(this.peers).filter((p, i)=>(this.peers[p].state === "connected"));
         Object.keys(this.peers).forEach((p,i)=>{
-            if (this.peers[p].state === "connected") {
+            if (
+                (this.peers[p].state === "connected") &&
+                !excluded.includes(p)
+            ) {
                 this.sendToPeer(p, data);
             }
         });

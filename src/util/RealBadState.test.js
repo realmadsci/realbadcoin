@@ -322,7 +322,7 @@ test('May the best chain win', async ()=>{
         expect(await b.isValid(difficulty1)).toBe(true);
 
         // Add it to our cache
-        c.addBlock(b, difficulty1);
+        c.addBlock(b, null, false, difficulty1);
 
         prevHash = b.hash;
         prevHeight = b.blockHeight;
