@@ -22,7 +22,7 @@ import { EventEmitter } from 'events';
 // Random slug generator to simplify connection to server
 const { generateSlug } = require("random-word-slugs");
 
-class ConnectionManager {
+export class ConnectionManager {
 
     constructor() {
         this.myId = null;
@@ -34,12 +34,12 @@ class ConnectionManager {
     }
 
     // Add subscribe/unsub options for tracking when connection/disconnection events happen
-    subscribe(callback) {
+    subscribeStatus(callback) {
         this._updateNotifier.addListener('status_change', callback);
     }
 
-    unsubscribe(callback) {
-        this._updateNotifier.removeListener('status_change', callback);
+    subscribeData(callback) {
+        this._updateNotifier.addListener('data', callback);
     }
 
     _notifyStatusChange(newState) {
@@ -211,6 +211,7 @@ class ConnectionManager {
 
     _handlePeerData(peer_id, data) {
         console.log("Data from " + peer_id + " = " + data.toString());
+        this._updateNotifier.emit('data', peer_id, data);
     }
 
     disconnectPeer(peer_id) {
@@ -226,16 +227,22 @@ class ConnectionManager {
         }
     }
 
-    sendToPeer(peer_id, msgObj) {
+    broadcast(data) {
+        let good_connections = Object.keys(this.peers).filter((p, i)=>(this.peers[p].state === "connected"));
+        Object.keys(this.peers).forEach((p,i)=>{
+            if (this.peers[p].state === "connected") {
+                this.sendToPeer(p, data);
+            }
+        });
+    }
+
+    sendToPeer(peer_id, data) {
         if (peer_id in this.peers) {
             if (this.peers[peer_id].state !== "connected") {
                 console.error("Tried to send to " + peer_id + " but they are not currently connected");
                 return;
             }
-
-            console.log("I'm going to send to " + peer_id + ". I'll let you know how it goes! msg = " + msgObj);
-            this.peers[peer_id].conn.send(msgObj);
-            console.log("Sent!");
+            this.peers[peer_id].conn.send(data);
         }
     }
 }
@@ -243,13 +250,13 @@ class ConnectionManager {
 
 
 
-class PeerApp extends React.Component {
+export class PeerApp extends React.Component {
 
     constructor(props) {
         super(props);
 
-        this._conn = props?.conn ?? new ConnectionManager();
-        this._conn.subscribe(()=>this._syncConnectionState());
+        this._conn = props.conn;
+        this._conn.subscribeStatus(()=>this._syncConnectionState());
 
         this.state = {
             myId: '',
@@ -349,4 +356,3 @@ class PeerApp extends React.Component {
     }
 }
 
-export default PeerApp;

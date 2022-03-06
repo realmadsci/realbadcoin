@@ -7,7 +7,7 @@ import {
   AccountIdentity,
   AccountView,
 } from './AccountView.js';
-import PeerApp from './PeerDemo';
+import { ConnectionManager, PeerApp } from './ConnectionManager';
 import BlockView from './BlockView';
 import TransactionView from './TransactionView';
 
@@ -39,13 +39,22 @@ class App extends React.Component {
 
     this._id = new AccountIdentity();
     this._cache = new RealBadCache();
-    this._cache.subscribe(()=>{this.cacheHasNewBlock()});
+    this._cache.subscribe((hash)=>{this.cacheHasNewBlock(hash)});
+    this._conn = new ConnectionManager();
+    this._conn.subscribeData((p, d)=>{this.handlePeerBlock(p,d)});
     this._mineworker = null;
+  }
+
+  handlePeerBlock(peer, data) {
+    this._cache.addBlock(RealBadBlock.coerce(JSON.parse(data)));
   }
 
   // Set this up as a callback from the cache when
   // it gets any new blocks
-  cacheHasNewBlock() {
+  cacheHasNewBlock(hash) {
+    // We just got this block and it's new, so announce it to our friends
+    this._conn.broadcast(JSON.stringify(this._cache.getBlock(hash)));
+
     console.log("Best block is " + this._cache.bestBlockHash + " at height " + this._cache.getBlock(this._cache.bestBlockHash).blockHeight);
 
     // Automatically jump to the selected state
@@ -138,7 +147,7 @@ class App extends React.Component {
           <BlockView hash={this.state.topHash} block={this.state.topBlock} lstate={this.state.topLState} />
         </Paper>
         <Paper elevation={8}>
-          <PeerApp />
+          <PeerApp conn={this._conn} />
         </Paper>
       </Box>
     );

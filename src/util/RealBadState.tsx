@@ -308,7 +308,7 @@ export class RealBadCache {
                         }
                     }
                 }
-                this._updateNotifier.emit('new_block');
+                this._updateNotifier.emit('new_block', hash);
                 return true;
             }
         } catch (error) {
