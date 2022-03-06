@@ -9,6 +9,7 @@ import ListItem from '@mui/material/ListItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import TextField from '@mui/material/TextField';
+import Stack from '@mui/material/Stack';
 
 import CloudRoundedIcon from '@mui/icons-material/CloudRounded';
 import SensorsRoundedIcon from '@mui/icons-material/SensorsRounded';
@@ -48,7 +49,14 @@ class ConnectionManager {
     }
 
     _notifyPeerStatusChange(peer, newState) {
-        if (newState !== "deleted") this.peers[peer].state = newState;
+        if (newState !== "deleted") {
+            this.peers[peer].state = newState;
+        }
+        else {
+            // If the user specifically deleted the connection, then wipe it from the restart history:
+            this.peerHistory = this.peerHistory.filter((e, i) => e !== peer);
+            sessionStorage.setItem("peer_history", JSON.stringify(this.peerHistory));
+        }
         if (newState === "connected") {
             // Keep track of previously connected peers so we can try to dial them up again next time!
             this.peerHistory.push(peer);
@@ -134,6 +142,14 @@ class ConnectionManager {
 
     gotNewConnection(conn) {
         console.log("I got connection. Reliable = " + conn.reliable);
+
+        // Cap the incoming connection count
+        let good_connections = Object.keys(this.peers).filter((p, i)=>(this.peers[p].state === "connected"));
+        if (good_connections.length >= 5) {
+            console.error("Already have too many connections, not accepting any more incoming!")
+            conn.close();
+            return;
+        }
 
         this.peers[conn.peer] = {
             state: "connected",
@@ -275,7 +291,7 @@ class PeerApp extends React.Component {
 
     render() {
         return (
-            <>
+            <Stack spacing={1} sx={{p:1}}>
                 <List component="div" disablePadding>
                     <ListItem>
                         <ListItemIcon>
@@ -306,13 +322,20 @@ class PeerApp extends React.Component {
                         }
                     }}
                 />
-                <Box spacing={1}>
+                <Box sx={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 1,
+                }}>
                     {
                         this.state.peerInfo.map((p, i)=>{
                             return (
                             <Chip
                                 key={p.id}
                                 label={p.id}
+                                onClick={(p.state === "connected") ? undefined : ()=>{
+                                    this._conn.connectToPeer(p.id);
+                                }}
                                 onDelete={()=>{
                                     this._conn.disconnectPeer(p.id);
                                 }}
@@ -321,7 +344,7 @@ class PeerApp extends React.Component {
                         })
                     }
                 </Box>
-            </>
+            </Stack>
         );
     }
 }
