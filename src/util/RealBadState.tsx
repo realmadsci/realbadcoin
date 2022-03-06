@@ -292,7 +292,7 @@ export class RealBadCache {
 
                     // Now that we updated a block, see if this lets us update any others, which will have us repeat the loop again.
                     if (h in this._anticipatedBlocks) {
-                        this._readyBlocks.concat(this._anticipatedBlocks[h]);
+                        this._readyBlocks = this._readyBlocks.concat(this._anticipatedBlocks[h]);
                         delete this._anticipatedBlocks[h];
                     }
 

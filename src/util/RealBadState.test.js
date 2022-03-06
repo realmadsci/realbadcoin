@@ -358,3 +358,57 @@ test('May the best chain win', async ()=>{
     expect(c.getChain(best1).length).toBe(3);
     expect(c.getChain(best2).length).toBe(2);
 });
+
+
+test('Insert all blocks backwards still processes correctly', async ()=>{
+    let a = new AccountMock();
+    let id = await a.getPubKeyHex();
+    let reward = 100;
+    let difficulty = 256**1;
+
+    // Store all the blocks into a list so we can insert them into cache
+    // out of order later.
+    let l = [];
+
+    // Build chain of 10 "easy" blocks:
+    let prevHash = "00".repeat(32)
+    let prevHeight = -1;
+    for (let i = 0; i < 10; i++) {
+        let b = new RealBadBlock();
+        b.difficulty = difficulty;
+        b.miningReward = reward;
+        b.rewardDestination = id;
+        b.prevHash = prevHash;
+        b.blockHeight = prevHeight + 1;
+        expect(b.tryToSeal(1e6)).toBe(true);
+        expect(b.isSealed(difficulty)).toBe(true);
+        expect(await b.isValid(difficulty)).toBe(true);
+
+        // Add it to our list
+        l.push(b);
+
+        prevHash = b.hash;
+        prevHeight = b.blockHeight;
+    }
+
+    // Dump the list into the cache in reverse order
+    let c = new RealBadCache();
+    l.reverse().forEach((b, i)=>{
+        expect(c.bestBlockHash).toBe(null);
+        c.addBlock(b, null, false, difficulty);
+    });
+    l.reverse(); // Flip it back forward.
+    expect(c.bestBlockHash).toBe(l[9].hash);
+
+    // Dump the list into the cache in *almost* reverse order
+    let c2 = new RealBadCache();
+    c2.addBlock(l[0], null, false, difficulty);
+    expect(c2.bestBlockHash).toBe(l[0].hash);
+    c2.addBlock(l[1], null, false, difficulty);
+    l.slice(2).reverse().forEach((b, i)=>{
+        expect(c2.bestBlockHash).toBe(l[1].hash);
+        c2.addBlock(b, null, false, difficulty);
+    });
+
+    expect(c2.bestBlockHash).toBe(l[9].hash);
+});
