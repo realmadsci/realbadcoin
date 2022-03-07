@@ -43,6 +43,9 @@ export class RealBadNftState {
 
 // Exception thrown when 
 export class RealBadInvalidTransaction {
+    message = "";
+    transaction = null;
+
     constructor(message, transaction) {
         this.message = message;
         this.transaction = transaction;
@@ -63,6 +66,11 @@ export class RealBadLedgerState {
     lastBlockHash = '00'.repeat(32);
     lastBlockHeight = -1;
 
+    // This is the target difficulty, based on the timestamps from the last 10 blocks
+    nextBlockDifficulty = null;
+    lastBlockTimestamp = null;
+    lastRetarget = null;
+
     // This is the sum of all difficulty metrics for all blocks in the chain leading up to this state.
     // It is used to determine which chain represents the highest block.
     totalDifficulty = 0n;
@@ -73,6 +81,9 @@ export class RealBadLedgerState {
         transactionFees,
         lastBlockHash,
         lastBlockHeight,
+        nextBlockDifficulty,
+        lastBlockTimestamp,
+        lastRetarget,
         totalDifficulty,
     }) {
         let r = new RealBadLedgerState();
@@ -85,6 +96,9 @@ export class RealBadLedgerState {
         r.transactionFees = transactionFees;
         r.lastBlockHash = lastBlockHash;
         r.lastBlockHeight = lastBlockHeight;
+        r.nextBlockDifficulty = nextBlockDifficulty;
+        r.lastBlockTimestamp = lastBlockTimestamp;
+        r.lastRetarget = lastRetarget;
         r.totalDifficulty = totalDifficulty;
         return r;
     }
@@ -186,13 +200,32 @@ export class RealBadLedgerState {
         // First just check if the new block fits as the next block in the block chain
         if (block.prevHash !== this.lastBlockHash) return null;
         if (block.blockHeight !== this.lastBlockHeight + 1) return null;
+        if (block.timestamp > new Date()) return null; // No blocks from the future!
+        if ((block.blockHeight !== 0) && (block.timestamp < this.lastBlockTimestamp)) return null; // Block timestamps must be monotonically increasing!
+
         s.lastBlockHash = block.hash;
         s.lastBlockHeight = block.blockHeight;
+        s.lastBlockTimestamp = block.timestamp;
 
         // The difficulty metric is proportional to how low the hash is relative to the "zero difficulty" level.
         // The lower the hash as an integer, the bigger the difficulty.
         // When you sum this metric from two blocks, it is equivalent to having solved one block with twice the difficulty.
         s.totalDifficulty = this.totalDifficulty + RealBadBlock.difficultyMetric(s.lastBlockHash);
+
+        // Check if they tried hard enough
+        if (block.difficulty < this.nextBlockDifficulty) return null; // They didn't try and hit the target difficulty!
+
+        // Re-target the difficulty if the next block is a multiple of 10 blocks:
+        s.nextBlockDifficulty = this.nextBlockDifficulty ?? block.difficulty;
+        s.lastRetarget = this.lastRetarget ?? block.timestamp;
+        if ((block.blockHeight + 1) % 10 === 0) {
+            let gap = block.timestamp - s.lastRetarget;
+            s.lastRetarget = block.timestamp;
+            let gapTarget = 10 * (15 * 1000); // Target in milliseconds for 10 blocks to be created
+            let difficultyError = gap / gapTarget;
+            console.log("Retargetting difficultyError = " + difficultyError);
+            s.nextBlockDifficulty = Math.round(s.nextBlockDifficulty / difficultyError);
+        }
 
         // Attempt to apply all the transactions
         try {
@@ -218,14 +251,12 @@ export class RealBadLedgerState {
 // Keep track of a set of blocks and provide helper functions for identifying the longest chain, etc.
 // NOTE: This is a LOCAL data structure and is not something that can be trusted if it is sent from elsewhere!
 export class RealBadCache {
-    constructor() {
-        this._blocks = {};               // Key/value pairs with key as block hash and full state of system as the value
-        this._anticipatedBlocks = {};    // Key/value pairs with key as "prevHash" for blocks that don't exist in our cache yet, and value as a list of blocks waiting on them to arrive.
-        this._readyBlocks = [];          // List of hashes of blocks that are marked as "ready for processing state". They are pulled from _anticipatedBlocks once their ancestor is done processing.
-        this._bestBlock = null;          // Hash of the top-scoring block (i.e. the one with the deepest block chain "strength")
-        this.minDifficulty = 256**2;     // Minimum difficulty level of blocks to allow into our cache.
-        this._updateNotifier = new EventEmitter();
-    }
+    _blocks = {};               // Key/value pairs with key as block hash and full state of system as the value
+    _anticipatedBlocks = {};    // Key/value pairs with key as "prevHash" for blocks that don't exist in our cache yet, and value as a list of blocks waiting on them to arrive.
+    _readyBlocks = [];          // List of hashes of blocks that are marked as "ready for processing state". They are pulled from _anticipatedBlocks once their ancestor is done processing.
+    _bestBlock = null;          // Hash of the top-scoring block (i.e. the one with the deepest block chain "strength")
+    minDifficulty = 256**2;     // Minimum difficulty level of blocks to allow into our cache.
+    _updateNotifier = new EventEmitter();
 
     // Add subscribe/unsub options for tracking when new blocks arrive
     subscribe(callback) {

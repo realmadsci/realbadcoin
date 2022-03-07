@@ -370,10 +370,11 @@ test('Insert all blocks backwards still processes correctly', async ()=>{
     // out of order later.
     let l = [];
 
-    // Build chain of 10 "easy" blocks:
+    // Build chain of 9 "easy" blocks.
+    // Have to stop at 9 to prevent getting snagged by the difficulty retargetting!
     let prevHash = "00".repeat(32)
     let prevHeight = -1;
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 9; i++) {
         let b = new RealBadBlock();
         b.difficulty = difficulty;
         b.miningReward = reward;
@@ -398,7 +399,7 @@ test('Insert all blocks backwards still processes correctly', async ()=>{
         c.addBlock(b, null, false, difficulty);
     });
     l.reverse(); // Flip it back forward.
-    expect(c.bestBlockHash).toBe(l[9].hash);
+    expect(c.bestBlockHash).toBe(l[8].hash);
 
     // Dump the list into the cache in *almost* reverse order
     let c2 = new RealBadCache();
@@ -410,5 +411,5 @@ test('Insert all blocks backwards still processes correctly', async ()=>{
         c2.addBlock(b, null, false, difficulty);
     });
 
-    expect(c2.bestBlockHash).toBe(l[9].hash);
+    expect(c2.bestBlockHash).toBe(l[8].hash);
 });

@@ -120,7 +120,7 @@ class App extends React.Component {
   async miningLoop(destination) {
     let prevHash = '00'.repeat(32);
     let worker = null;
-    let difficulty = 10*256**2;
+    let baseDifficulty = 10*256**2;
     let reward = 100;
     while (true) {
       // Grab the newest block
@@ -143,7 +143,7 @@ class App extends React.Component {
         let b = new RealBadBlock();
         b.prevHash = prevHash;
         b.blockHeight = prevHeight + 1;
-        b.difficulty = difficulty;
+        b.difficulty = this._cache.getState(prevHash)?.nextBlockDifficulty ?? baseDifficulty;
         b.miningReward = reward;
         b.rewardDestination = destination;
         //TODO: Add transactions in here somewhere!
@@ -155,7 +155,7 @@ class App extends React.Component {
       }
 
       if (worker !== null) {
-        let b = await worker.tryToSeal(1e6);
+        let b = await worker.tryToSeal(10000);
         if (b !== null) {
           // We got one!
           // Add it to our cache
