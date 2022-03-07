@@ -130,7 +130,7 @@ class App extends React.Component {
       // Only need to do a worker if the "best" is updated somehow.
       // This will be true if a new "best block" arrives OR if we have new transactions.
       //TODO: Update for new transactions!
-      if (prevHash != newestHash) {
+      if (prevHash !== newestHash) {
         // If we got a newer "best" block, then use that.
         // If we got null when we asked for the newest, then keep
         // the "pre-genesis" hash as "prevHash".
@@ -155,7 +155,7 @@ class App extends React.Component {
       }
 
       if (worker !== null) {
-        let b = await worker.tryToSeal(10000);
+        let b = await worker.tryToSeal(50000);
         if (b !== null) {
           // We got one!
           // Add it to our cache
