@@ -165,7 +165,7 @@ export class ConnectionManager {
 
     connectToPeer(peer_id) {
         console.log("Trying to connect to peer_id = " + peer_id)
-        const conn = this.server.connect(peer_id);//, { reliable: true });
+        const conn = this.server.connect(peer_id, { reliable: true });
 
         this.peers[peer_id] = {
             state: "connecting",
@@ -210,7 +210,7 @@ export class ConnectionManager {
     }
 
     _handlePeerData(peer_id, data) {
-        console.log("Data from " + peer_id + " = " + data.toString());
+        //console.log("Data from " + peer_id + " = " + data.toString());
         this._updateNotifier.emit('data', peer_id, data);
     }
 

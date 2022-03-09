@@ -103,7 +103,7 @@ class App extends React.Component {
     }
 
     if (this._cache.bestBlockHash !== null) {
-      console.log("Best block is " + this._cache.bestBlockHash + " at height " + this._cache.getBlock(this._cache.bestBlockHash).blockHeight);
+      //console.log("Best block is " + this._cache.bestBlockHash + " at height " + this._cache.getBlock(this._cache.bestBlockHash).blockHeight);
 
       // Automatically jump to the selected state
       let topHash = this._cache.bestBlockHash;
@@ -153,7 +153,7 @@ class App extends React.Component {
       }
 
       if (worker !== null) {
-        let b = await worker.tryToSeal(50000);
+        let b = await worker.tryToSeal(1e6);
         if (b !== null) {
           // We got one!
           // Add it to our cache
