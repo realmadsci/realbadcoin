@@ -67,12 +67,17 @@ export class RealBadLedgerState {
     lastBlockHeight = -1;
 
     // This is the target difficulty, based on the timestamps between each block
-    nextBlockDifficulty = 2e6; // Difficulty of a genesis block!
+    nextBlockDifficulty = null; // Difficulty of a genesis block!
     lastBlockTimestamp = null;
 
     // This is the sum of all difficulty metrics for all blocks in the chain leading up to this state.
     // It is used to determine which chain represents the highest block.
     totalDifficulty = 0n;
+
+    // Can assign the genesis block difficulty in the constructor
+    constructor(genesisDifficulty = 2e6) {
+        this.nextBlockDifficulty = genesisDifficulty;
+    }
 
     static coerce({
         accounts,
@@ -258,19 +263,10 @@ export class RealBadCache {
     _readyBlocks = [];          // List of hashes of blocks that are marked as "ready for processing state". They are pulled from _anticipatedBlocks once their ancestor is done processing.
     _bestBlock = null;          // Hash of the top-scoring block (i.e. the one with the deepest block chain "strength")
     minDifficulty = 256**2;     // Minimum difficulty level of blocks to allow into our cache.
-    _updateNotifier = new EventEmitter();
-
-    // Add subscribe/unsub options for tracking when new blocks arrive
-    subscribe(callback) {
-        this._updateNotifier.addListener('new_block', callback);
-    }
-
-    unsubscribe(callback) {
-        this._updateNotifier.removeListener('new_block', callback);
-    }
+    genesisDifficulty = 2e6;    // Difficulty of genesis blocks
 
     // Only accept good RealBadBlocks into our cache!
-    addBlock(block, source, wasRequested, minDifficulty=this.minDifficulty) {
+    addBlock(block, source, minDifficulty=this.minDifficulty) {
         try {
             let hash = block.hash; // Save us the trouble of recomputing this tons of times!
             if (
@@ -309,7 +305,7 @@ export class RealBadCache {
 
                     if (b.blockHeight === 0) {
                         // Genesis block!
-                        this._blocks[h].state = (new RealBadLedgerState()).applyBlock(b);
+                        this._blocks[h].state = (new RealBadLedgerState(this.genesisDifficulty)).applyBlock(b);
                     }
                     // ASSUMPTION: Unless this is a genesis block, if it got into _readyBlocks then it's prevHash *is available* in our block cache!
                     else if (this._blocks[b.prevHash].state === null) {
@@ -344,7 +340,6 @@ export class RealBadCache {
                         }
                     }
                 }
-                this._updateNotifier.emit('new_block', hash, wasRequested);
                 return true;
             }
         } catch (error) {

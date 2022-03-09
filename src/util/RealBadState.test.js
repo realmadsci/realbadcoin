@@ -75,7 +75,7 @@ test('Empty genesis block provides $$ to creator', async ()=>{
     expect(await b.isValid()).toBe(true);
 
     // Apply it to the ledger and see if we get some $$
-    let blank = new RealBadLedgerState();
+    let blank = new RealBadLedgerState(0); // Just ignore difficulty target!
     let s = blank.applyBlock(b);
     expect(s.accounts[id].balance).toBe(reward);
     expect(s.accounts[id].nonce).toBe(0);
@@ -101,7 +101,7 @@ test('Transfers', async ()=>{
     expect(await b.isValid()).toBe(true);
 
     // Apply it to the ledger and see if we get some $$
-    let blank = new RealBadLedgerState();
+    let blank = new RealBadLedgerState(0); // Just ignore difficulty target!
     let s = blank.applyBlock(b);
     expect(s.accounts[id].balance).toBe(reward);
     expect(s.accounts[id].nonce).toBe(0);
@@ -286,7 +286,8 @@ test('Check accumulation of difficulty', async ()=>{
     expect(await b2.isValid()).toBe(true);
 
     // Figure out the state at the end:
-    let s1 = (new RealBadLedgerState()).applyBlock(b1);
+    let blank = new RealBadLedgerState(0); // Just ignore difficulty target!
+    let s1 = blank.applyBlock(b1);
     let s2 = s1.applyBlock(b2);
 
     expect(s1.totalDifficulty).toBeGreaterThanOrEqual(difficulty);
@@ -306,6 +307,7 @@ test('May the best chain win', async ()=>{
 
     // Store all the blocks into a cache
     let c = new RealBadCache();
+    c.genesisDifficulty = 0; // Just ignore difficulty target!
 
     // First chain of 3 "easy" blocks:
     let prevHash = "00".repeat(32)
@@ -322,7 +324,7 @@ test('May the best chain win', async ()=>{
         expect(await b.isValid(difficulty1)).toBe(true);
 
         // Add it to our cache
-        c.addBlock(b, null, false, difficulty1);
+        c.addBlock(b, null, difficulty1);
 
         prevHash = b.hash;
         prevHeight = b.blockHeight;
@@ -394,21 +396,23 @@ test('Insert all blocks backwards still processes correctly', async ()=>{
 
     // Dump the list into the cache in reverse order
     let c = new RealBadCache();
+    c.genesisDifficulty = 0; // Just ignore difficulty target!
     l.reverse().forEach((b, i)=>{
         expect(c.bestBlockHash).toBe(null);
-        c.addBlock(b, null, false, difficulty);
+        c.addBlock(b, null, difficulty);
     });
     l.reverse(); // Flip it back forward.
     expect(c.bestBlockHash).toBe(l[8].hash);
 
     // Dump the list into the cache in *almost* reverse order
     let c2 = new RealBadCache();
-    c2.addBlock(l[0], null, false, difficulty);
+    c2.genesisDifficulty = 0; // Just ignore difficulty target!
+    c2.addBlock(l[0], null, difficulty);
     expect(c2.bestBlockHash).toBe(l[0].hash);
-    c2.addBlock(l[1], null, false, difficulty);
+    c2.addBlock(l[1], null, difficulty);
     l.slice(2).reverse().forEach((b, i)=>{
         expect(c2.bestBlockHash).toBe(l[1].hash);
-        c2.addBlock(b, null, false, difficulty);
+        c2.addBlock(b, null, difficulty);
     });
 
     expect(c2.bestBlockHash).toBe(l[8].hash);
