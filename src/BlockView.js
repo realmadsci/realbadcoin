@@ -78,6 +78,12 @@ function BlockView(props) {
         </ListItem>
         <ListItem>
             <ListItemText
+                primary="Target Difficulty"
+                secondary={b.difficulty.toString()}
+            />
+        </ListItem>
+        <ListItem>
+            <ListItemText
                 primary="Difficulty Metric"
                 secondary={RealBadBlock.difficultyMetric(hash).toString()}
             />
