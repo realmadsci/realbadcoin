@@ -42,6 +42,7 @@ class App extends React.Component {
 
     this._conn = new ConnectionManager();
     this._conn.subscribeData((p, d)=>{this.handlePeerData(p,d)});
+    this._conn.subscribeNewPeer((p)=>{this.handleNewPeer(p);});
 
     this._mineworker = null;
 
@@ -53,6 +54,17 @@ class App extends React.Component {
     this.state.privKeyHex = await this._id.getPrivKeyHex();
     this.state.pubKeyHex = await this._id.getPubKeyHex();
     this._cacheworker = await new CacheWorker();
+  }
+
+  async handleNewPeer(peer) {
+    // Whenever we get connected to a new peer, ask for all the blocks they know about!
+    //console.log("Pestering peer \"" + peer + "\" with requestBlocks");
+    this._conn.sendToPeer(peer, JSON.stringify({
+      requestBlocks: {
+        have: await this._cacheworker.bestBlockHash,
+        want: null, // Null means "give me your best chain"
+      }
+    }));
   }
 
   async handlePeerData(peer, data) {

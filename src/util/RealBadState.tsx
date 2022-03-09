@@ -380,9 +380,10 @@ export class RealBadCache {
     // Return list with all blocks in the chain.
     // Stops when it runs out of previous blocks (or hits a genesis block).
     // Also stops early when it hits rootHash if that is part of the chain.
+    // If `hash` is null-ish, then it will assume you want the top of the "best chain".
     getChain(hash, rootHash=null) {
         let chain = [];
-        let currHash = hash;
+        let currHash = hash ?? this.bestBlockHash;
         let currBlock = this.getBlock(currHash);
 
         while ((currHash !== rootHash) && (currBlock !== null)) {

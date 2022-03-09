@@ -38,6 +38,10 @@ export class ConnectionManager {
         this._updateNotifier.addListener('status_change', callback);
     }
 
+    subscribeNewPeer(callback) {
+        this._updateNotifier.addListener('new_peer', callback);
+    }
+
     subscribeData(callback) {
         this._updateNotifier.addListener('data', callback);
     }
@@ -63,6 +67,8 @@ export class ConnectionManager {
             // Only keep unique ones!
             this.peerHistory = this.peerHistory.filter((e, i) => this.peerHistory.indexOf(e) === i);
             sessionStorage.setItem("peer_history", JSON.stringify(this.peerHistory));
+
+            this._updateNotifier.emit('new_peer', peer);
         }
         console.log(this.peers);
         this._updateNotifier.emit('status_change');
@@ -151,12 +157,15 @@ export class ConnectionManager {
             return;
         }
 
-        this.peers[conn.peer] = {
-            state: "connected",
-            conn: conn,
-            initiator: false,
-        }
-        this._notifyPeerStatusChange(conn.peer, "connected");
+        conn.on('open', () => {
+            this.peers[conn.peer] = {
+                state: "connected",
+                conn: conn,
+                initiator: false,
+            }
+            console.log("Connection from " + conn.peer + " confirmed.");
+            this._notifyPeerStatusChange(conn.peer, "connected");
+        });
 
         conn.on('close', () => {this._handlePeerClose(conn.peer)});
         conn.on('error', (err) => {this._handlePeerError(conn.peer, err)});
@@ -259,7 +268,6 @@ export class PeerApp extends React.Component {
         super(props);
 
         this._conn = props.conn;
-        this._conn.subscribeStatus(()=>this._syncConnectionState());
 
         this.state = {
             myId: '',
@@ -287,6 +295,10 @@ export class PeerApp extends React.Component {
     }
 
     componentDidMount() {
+        // Subscribe to updates in connection status
+        this._conn.subscribeStatus(()=>this._syncConnectionState());
+
+        // Try to connect:
         this._conn.connectToServer();
     }
 
