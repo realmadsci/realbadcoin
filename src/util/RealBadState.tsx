@@ -379,12 +379,13 @@ export class RealBadCache {
 
     // Return list with all blocks in the chain.
     // Stops when it runs out of previous blocks (or hits a genesis block).
-    getChain(hash) {
+    // Also stops early when it hits rootHash if that is part of the chain.
+    getChain(hash, rootHash=null) {
         let chain = [];
         let currHash = hash;
         let currBlock = this.getBlock(currHash);
 
-        while (currBlock !== null) {
+        while ((currHash !== rootHash) && (currBlock !== null)) {
             chain.unshift(currHash);
 
             // Stop when we hit genesis block

@@ -79,9 +79,7 @@ class App extends React.Component {
 
     // Somebody wants to know what we know
     if ("requestBlocks" in d) {
-      let haveChain = this._cache.getChain(d.requestBlocks?.have);
-      let wantChain = this._cache.getChain(d.requestBlocks?.want);
-      let resultChain = wantChain.filter((h, i)=>(!haveChain.includes(h)));
+      let resultChain = this._cache.getChain(d.requestBlocks?.want, d.requestBlocks?.have);
 
       // Get the blocks and send them
       let blocks = resultChain.map((h, i)=>this._cache.getBlock(h));
