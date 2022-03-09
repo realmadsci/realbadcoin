@@ -23,6 +23,7 @@ import {
 } from './util/RealBadState.tsx';
 
 const MineWorker = Comlink.wrap(new Worker(new URL("./util/MineWorker.js", import.meta.url)));
+const CacheWorker = Comlink.wrap(new Worker(new URL("./util/CacheWorker.js", import.meta.url)));
 
 class App extends React.Component {
   constructor(props) {
@@ -38,51 +39,71 @@ class App extends React.Component {
     };
 
     this._id = new AccountIdentity();
-    this._cache = new RealBadCache();
-    this._cache.subscribe((hash, req)=>{this.cacheHasNewBlock(hash, req)});
+
     this._conn = new ConnectionManager();
     this._conn.subscribeData((p, d)=>{this.handlePeerData(p,d)});
+
     this._mineworker = null;
+
+    // Start the async initialization process
+    this._initialized = this._initialize();
   }
 
-  handlePeerData(peer, data) {
+  async _initialize() {
+    this.state.privKeyHex = await this._id.getPrivKeyHex();
+    this.state.pubKeyHex = await this._id.getPubKeyHex();
+    this._cacheworker = await new CacheWorker();
+  }
+
+  async handlePeerData(peer, data) {
     let d = JSON.parse(data);
     if ("newBlock" in d) {
       // Whenever we see a new block arrival, see if we can add it to the cache:
       let block = RealBadBlock.coerce(d.newBlock);
-      if (this._cache.addBlock(block, peer, false)) {
+      if (await this._cacheworker.addBlock(block, peer, false)) {
 
         // If the new block was good but still needs a parent, then send a request to try to fetch it's parent:
         let hash = block.hash;
-        let oldestParent = this._cache.getBlock(this._cache.getChain(hash)[0]);
+        let oldestParent = (await this._cacheworker.getBlockInfo((await this._cacheworker.getChain(hash))[0])).block;
         if (oldestParent.blockHeight !== 0) {
           this._conn.sendToPeer(peer, JSON.stringify({
             requestBlocks: {
-              have: this._cache.bestBlockHash,
+              have: await this._cacheworker.bestBlockHash,
               want: oldestParent.prevHash,
             }
           }));
         }
+
+        // Whenever a new _valid_ block comes along AND we didn't request it,
+        // broadcast it out to all our friends:
+        this._conn.broadcast(
+          JSON.stringify({
+            newBlock: block,
+          }),
+          [peer], // Don't broadcast BACK to the person who told us about this!
+        );
+
+        // We added a new block to the cache, so update our UI!
+        await this.cacheHasNewBlock(hash);
       }
     }
 
     // Shiny new blocks that we requested have arrived!
     if ("blockList" in d) {
-      d.blockList.forEach((b, i)=>{
-        this._cache.addBlock(
-          RealBadBlock.coerce(b),
-          peer,
-          true, // We requested these!
-        );
-      });
+      if (
+        (await this._cacheworker.addBlocks(d.blockList)).some(r=>(r===true))
+      ) {
+        // We added a new block to the cache, so update our UI!
+        await this.cacheHasNewBlock();
+      }
     }
 
     // Somebody wants to know what we know
     if ("requestBlocks" in d) {
-      let resultChain = this._cache.getChain(d.requestBlocks?.want, d.requestBlocks?.have);
+      let resultChain = await this._cacheworker.getChain(d.requestBlocks?.want, d.requestBlocks?.have);
 
       // Get the blocks and send them
-      let blocks = resultChain.map((h, i)=>this._cache.getBlock(h));
+      let blocks = await this._cacheworker.getBlocks(resultChain);
       this._conn.sendToPeer(peer, JSON.stringify({
         blockList: blocks,
       }));
@@ -91,26 +112,17 @@ class App extends React.Component {
 
   // Set this up as a callback from the cache when
   // it gets any new blocks
-  cacheHasNewBlock(hash, wasRequested) {
-    // Whenever a new block comes along AND we didn't request it, broadcast it out to all our friends:
-    if (!wasRequested) {
-      this._conn.broadcast(
-        JSON.stringify({
-          newBlock: this._cache.getBlock(hash),
-        }),
-        [this._cache.getSource(hash)], // Don't broadcast BACK to the person who told us about this!
-      );
-    }
-
-    if (this._cache.bestBlockHash !== null) {
-      //console.log("Best block is " + this._cache.bestBlockHash + " at height " + this._cache.getBlock(this._cache.bestBlockHash).blockHeight);
+  async cacheHasNewBlock(hash=undefined, wasRequested=undefined) {
+    let topHash = await this._cacheworker.bestBlockHash;
+    if (topHash !== null) {
+      let bi = await this._cacheworker.getBlockInfo(topHash);
+      //console.log("Best block is " + topHash + " at height " + bi.block.blockHeight);
 
       // Automatically jump to the selected state
-      let topHash = this._cache.bestBlockHash;
       this.setState({
         topHash: topHash,
-        topBlock: this._cache.getBlock(topHash),
-        topLState: this._cache.getState(topHash),
+        topBlock: bi.block,
+        topLState: bi.state,
       });
     }
   }
@@ -123,7 +135,7 @@ class App extends React.Component {
     while (true) {
       // Grab the newest block
       // NOTE: This will return null if there aren't any blocks yet!
-      let newestHash = this._cache.bestBlockHash;
+      let newestHash = await this._cacheworker.bestBlockHash;
 
       // Only need to do a worker if the "best" is updated somehow.
       // This will be true if a new "best block" arrives OR if we have new transactions.
@@ -132,16 +144,17 @@ class App extends React.Component {
         // If we got a newer "best" block, then use that.
         // If we got null when we asked for the newest, then keep
         // the "pre-genesis" hash as "prevHash".
-        let prevHeight = -1;
-        if (newestHash !== null) {
-          prevHash = newestHash;
-          prevHeight = this._cache.getBlock(prevHash).blockHeight;
-        }
+        if (newestHash !== null) prevHash = newestHash;
+
+        // Get the info for the previous block that we're going to build upon.
+        // NOTE: This might be null!
+        let lastBlockInfo = await this._cacheworker.getBlockInfo(prevHash);
+        let prevHeight = lastBlockInfo?.block?.blockHeight ?? -1;
 
         let b = new RealBadBlock();
         b.prevHash = prevHash;
         b.blockHeight = prevHeight + 1;
-        b.difficulty = this._cache.getState(prevHash)?.nextBlockDifficulty ?? baseDifficulty;
+        b.difficulty = lastBlockInfo?.state?.nextBlockDifficulty ?? baseDifficulty;
         b.miningReward = reward;
         b.rewardDestination = destination;
         //TODO: Add transactions in here somewhere!
@@ -156,8 +169,10 @@ class App extends React.Component {
         let b = await worker.tryToSeal(1e6);
         if (b !== null) {
           // We got one!
-          // Add it to our cache
-          this._cache.addBlock(RealBadBlock.coerce(b), this._conn.myId);
+          // Pretend like we sent it to ourselves, so it will get cached and broadcasted.
+          this.handlePeerData(this._conn.myId, JSON.stringify({
+            newBlock: b,
+          }));
         }
       }
     }
@@ -165,15 +180,8 @@ class App extends React.Component {
 
   componentDidMount() {
     // Grab the keys sometime in the future and stash them:
-    this._id.getPrivKeyHex().then(p=>{
-      this._id.getPubKeyHex().then(q=>{
-        this.setState({
-          privKeyHex: p,
-          pubKeyHex: q
-        }, ()=>{
-          this.miningLoop(q);
-        });
-      });
+    this._initialized.then(()=>{
+      this.miningLoop(this.state.pubKeyHex);
     });
   }
 
