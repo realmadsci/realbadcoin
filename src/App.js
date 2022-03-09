@@ -18,10 +18,6 @@ import {
   RealBadBlock
 } from './util/RealBadCoin.tsx';
 
-import {
-  RealBadCache
-} from './util/RealBadState.tsx';
-
 const MineWorker = Comlink.wrap(new Worker(new URL("./util/MineWorker.js", import.meta.url)));
 const CacheWorker = Comlink.wrap(new Worker(new URL("./util/CacheWorker.js", import.meta.url)));
 
@@ -142,8 +138,9 @@ class App extends React.Component {
   async miningLoop(destination) {
     let prevHash = '00'.repeat(32);
     let worker = null;
-    let baseDifficulty = 10*256**2;
+    let baseDifficulty = 2e6;
     let reward = 100;
+    let sealAttempts = 4e5; // How many attempts to make per sealing loop
     while (true) {
       // Grab the newest block
       // NOTE: This will return null if there aren't any blocks yet!
@@ -178,8 +175,20 @@ class App extends React.Component {
       }
 
       if (worker !== null) {
-        let b = await worker.tryToSeal(1e6);
-        if (b !== null) {
+        let before = new Date()
+        let b = await worker.tryToSeal(sealAttempts);
+        if (b === null) {
+          // Didn't get one.
+          // Adjust the mining length to try and hit a target time per loop
+          let after = new Date();
+          let delta = after - before;
+          let errorRatio = delta / (5 * 1000); // Aiming for 5 seconds per cycle. Would try for less, but Brave keeps crashing with "sbox out of memory" or something...
+          // IIR "leaky integrator" low-pass filter:
+          let alpha = 0.03;
+          sealAttempts = Math.round(sealAttempts * (1-alpha) + sealAttempts * alpha / errorRatio);
+          //console.log("Mining time = " + delta.toString() + " ms, errorRatio = " + errorRatio.toString() + ", attempts = " + sealAttempts.toString());
+        }
+        else {
           // We got one!
           // Pretend like we sent it to ourselves, so it will get cached and broadcasted.
           this.handlePeerData(this._conn.myId, JSON.stringify({

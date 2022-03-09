@@ -66,10 +66,9 @@ export class RealBadLedgerState {
     lastBlockHash = '00'.repeat(32);
     lastBlockHeight = -1;
 
-    // This is the target difficulty, based on the timestamps from the last 10 blocks
-    nextBlockDifficulty = null;
+    // This is the target difficulty, based on the timestamps between each block
+    nextBlockDifficulty = 2e6; // Difficulty of a genesis block!
     lastBlockTimestamp = null;
-    lastRetarget = null;
 
     // This is the sum of all difficulty metrics for all blocks in the chain leading up to this state.
     // It is used to determine which chain represents the highest block.
@@ -83,7 +82,6 @@ export class RealBadLedgerState {
         lastBlockHeight,
         nextBlockDifficulty,
         lastBlockTimestamp,
-        lastRetarget,
         totalDifficulty,
     }) {
         let r = new RealBadLedgerState();
@@ -98,7 +96,6 @@ export class RealBadLedgerState {
         r.lastBlockHeight = lastBlockHeight;
         r.nextBlockDifficulty = nextBlockDifficulty;
         r.lastBlockTimestamp = lastBlockTimestamp;
-        r.lastRetarget = lastRetarget;
         r.totalDifficulty = totalDifficulty;
         return r;
     }
@@ -205,6 +202,7 @@ export class RealBadLedgerState {
 
         s.lastBlockHash = block.hash;
         s.lastBlockHeight = block.blockHeight;
+        let blockTimeDelta = (block.blockHeight === 0) ? 0 : block.timestamp - this.lastBlockTimestamp;
         s.lastBlockTimestamp = block.timestamp;
 
         // The difficulty metric is proportional to how low the hash is relative to the "zero difficulty" level.
@@ -215,17 +213,21 @@ export class RealBadLedgerState {
         // Check if they tried hard enough
         if (block.difficulty < this.nextBlockDifficulty) return null; // They didn't try and hit the target difficulty!
 
-        // Re-target the difficulty if the next block is a multiple of 10 blocks:
-        s.nextBlockDifficulty = this.nextBlockDifficulty ?? block.difficulty;
-        s.lastRetarget = this.lastRetarget ?? block.timestamp;
-        if ((block.blockHeight + 1) % 10 === 0) {
-            let gap = block.timestamp - s.lastRetarget;
-            s.lastRetarget = block.timestamp;
-            let gapTarget = 10 * (15 * 1000); // Target in milliseconds for 10 blocks to be created
-            let difficultyError = gap / gapTarget;
-            console.log("Retargetting difficultyError = " + difficultyError);
-            s.nextBlockDifficulty = Math.round(s.nextBlockDifficulty / difficultyError);
+        // Re-target the difficulty based on how long this last block took to harvest
+        // This uses a long-running "leaky integrator" IIR filter to low-pass filter the block gaps
+        // until we reach an equilibrium. But everybody can easily compute the next result based only on
+        // the last two timestamps!
+        if (block.blockHeight === 0) {
+            // The first 2 blocks get the same "genesis difficulty":
+            s.nextBlockDifficulty = this.nextBlockDifficulty;
         }
+        else {
+            let errorRatio = blockTimeDelta / (15 * 1000); // Targeting 15 seconds per block
+            // IIR "leaky integrator" low-pass filter:
+            let alpha = 0.01;
+            s.nextBlockDifficulty = Math.round(this.nextBlockDifficulty * ((1-alpha) + alpha / errorRatio));
+        }
+        //console.log("Target difficulty after block " + s.lastBlockHeight.toString() + " is " + s.nextBlockDifficulty.toString());
 
         // Attempt to apply all the transactions
         try {
