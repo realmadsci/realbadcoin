@@ -9,8 +9,6 @@ import {
 
 import { hexToBigint, bigintToHex } from 'bigint-conversion';
 
-import { EventEmitter } from 'events';
-
 export class RealBadAccountState {
     balance = 0;
     nonce = 0;
@@ -262,6 +260,8 @@ export class RealBadCache {
     _anticipatedBlocks = {};    // Key/value pairs with key as "prevHash" for blocks that don't exist in our cache yet, and value as a list of blocks waiting on them to arrive.
     _readyBlocks = [];          // List of hashes of blocks that are marked as "ready for processing state". They are pulled from _anticipatedBlocks once their ancestor is done processing.
     _bestBlock = null;          // Hash of the top-scoring block (i.e. the one with the deepest block chain "strength")
+    _txPool = {};               // Pool of un-confirmed transactions that we can try add to a block.
+    _recentConfirmedTx = {};    // Pool of recently confirmed transactions so we can avoid repeating them.
     minDifficulty = 256**2;     // Minimum difficulty level of blocks to allow into our cache.
     genesisDifficulty = 2e6;    // Difficulty of genesis blocks
 
@@ -336,7 +336,7 @@ export class RealBadCache {
                             (bestState === null) ||
                             (thisState.totalDifficulty > bestState.totalDifficulty)
                         ) {
-                            this._bestBlock = h;
+                            this._updateBestBlock(h);
                         }
                     }
                 }
@@ -346,6 +346,49 @@ export class RealBadCache {
             console.error(error);
             return false;
         }
+    }
+
+    // Whenever we have chosen a new "best" block, we need to update the transaction pools
+    _updateBestBlock(newBest) {
+        let oldBest = this._bestBlock;
+        this._bestBlock = newBest;
+
+        //TODO: Maybe find a more efficient method for this other
+        // than "construct entire chains and compare them"!
+        let oldChain = this.getChain(oldBest);
+        let newChain = this.getChain(newBest);
+
+        // These are "Removed" blocks. All transactions in them should be added to the tx pool
+        let removedBlocks = oldChain.filter((b, i)=>!newChain.includes(b));
+        removedBlocks.forEach(h=>{
+            let b = this.getBlock(h);
+            b.transactions.forEach(t=>{
+                // Add them to txPool
+                // NOTE: This can cause really really old transactions to reenter the pool. :shrug:
+                this._txPool[t.txId] = t;
+
+                // Remove from recently confirmed pool:
+                delete this._recentConfirmedTx[t.txId];
+            });
+        });
+
+        // These are "Added" blocks. All transactions in them should be removed from the tx pool
+        let addedBlocks = newChain.filter((b, i)=>!oldChain.includes(b));
+        addedBlocks.forEach(h=>{
+            let b = this.getBlock(h);
+            b.transactions.forEach(t=>{
+                // Add them to recently confirmed pool, but only if they are "recent":
+                if (
+                    (t.timestamp < Date.now()) &&
+                    ((Date.now() - t.timestamp) < 10*60*1000)
+                ) {
+                    this._recentConfirmedTx[t.txId] = t;
+                }
+
+                // Remove from txPool:
+                delete this._txPool[t.txId];
+            });
+        });
     }
 
     // Return hash of the best block that we know about:
@@ -394,5 +437,85 @@ export class RealBadCache {
         }
 
         return chain;
+    }
+
+    // Validate and possibly add a transaction into the memory pool.
+    // If the transaction is VALID and NEW, then return true.
+    async addTransaction(tx) {
+        try {
+            if (
+                // Make sure its a valid signed Tx
+                (tx instanceof RealBadTransaction)
+                && await tx.isValid()
+
+                // Make sure it's timestamp isn't in the future or too far in the past
+                && (tx.timestamp < Date.now())
+                && (Date.now() - tx.timestamp < 10*60*1000) // We only keep them for 10 minutes
+
+                // Also quit early if we already have this one!
+                && !(tx.txId in this._txPool)
+                && !(tx.txId in this._recentConfirmedTx)
+            ) {
+                // This is a new transaction that we haven't seen recently!
+                this._txPool[tx.txId] = tx;
+                return true;
+            }
+        } catch (error) {
+            console.error(error);
+            return false;
+        }
+    }
+
+    // Create the next block for mining, based on the best known block plus
+    // whatever valid transactions we can grab from the txPool
+    makeMineableBlock(reward, destination) {
+        let prevHash = this.bestBlockHash ?? '00'.repeat(32);
+
+        // Get the info for the previous block that we're going to build upon.
+        // NOTE: This might be null!
+        let lastBlockInfo = this.getBlock(prevHash);
+        let lastBlockState = this.getState(prevHash) ?? new RealBadLedgerState(this.genesisDifficulty);
+        let prevHeight = lastBlockInfo?.blockHeight ?? -1;
+
+        let b = new RealBadBlock();
+        b.prevHash = prevHash;
+        b.blockHeight = prevHeight + 1;
+        b.difficulty = lastBlockState.nextBlockDifficulty;
+        b.miningReward = reward;
+        b.rewardDestination = destination;
+
+        // Try and add as many transactions to the block as will create a valid state
+        let s = lastBlockState.clone();
+        let poolCopy = [];
+        for (const txId in this._txPool) {
+            poolCopy.push(txId);
+        }
+
+        // Transactions only "work" in certain orders, so try our best to find that order.
+        // We're going to loop until we don't get any new valid transactions
+        // in a pass through the list
+        while (true) {
+            let newTransactions = [];
+            poolCopy.forEach(txId=>{
+                try {
+                    s.tryTransaction(this._txPool[txId]);
+                    newTransactions.push(txId);
+                } catch (error) {
+                    if (!(error instanceof RealBadInvalidTransaction)) {
+                        throw error;
+                    }
+                }
+            });
+
+            // When we stop making progress, quit!
+            if (newTransactions.length === 0) break;
+
+            // Put the new transactions in the block
+            b.transactions = b.transactions.concat(newTransactions.map(txId=>this._txPool[txId]));
+
+            // Remove them from further consideration
+            poolCopy = poolCopy.filter((txId, i)=>!newTransactions.includes(txId));
+        }
+        return b;
     }
 }

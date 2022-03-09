@@ -3,7 +3,8 @@
 import * as Comlink from 'comlink';
 
 import {
-    RealBadBlock
+    RealBadBlock,
+    RealBadTransaction,
 } from './RealBadCoin.tsx';
 
 import {
@@ -48,6 +49,17 @@ class CacheWorker {
     // Return the hash of the top of the "best chain" that we know about
     get bestBlockHash() {
         return this.#cache.bestBlockHash;
+    }
+
+    // Validate and possibly add a transaction into the memory pool.
+    // If the transaction is VALID and NEW, then return true.
+    addTransaction(transaction) {
+        let tx = RealBadTransaction.coerce(transaction);
+        return this.#cache.addTransaction(tx);
+    }
+
+    makeMineableBlock(reward, destination) {
+        return this.#cache.makeMineableBlock(reward, destination);
     }
 }
 

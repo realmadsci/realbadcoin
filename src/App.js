@@ -138,7 +138,6 @@ class App extends React.Component {
   async miningLoop(destination) {
     let prevHash = '00'.repeat(32);
     let worker = null;
-    let baseDifficulty = 2e6;
     let reward = 100;
     let sealAttempts = 4e5; // How many attempts to make per sealing loop
     while (true) {
@@ -146,29 +145,18 @@ class App extends React.Component {
       // NOTE: This will return null if there aren't any blocks yet!
       let newestHash = await this._cacheworker.bestBlockHash;
 
-      // Only need to do a worker if the "best" is updated somehow.
-      // This will be true if a new "best block" arrives OR if we have new transactions.
-      //TODO: Update for new transactions!
+      // Only need to reset the worker if the "best" is updated somehow.
+      // This will be true if a new "best block" arrives (or we make one!).
       if (prevHash !== newestHash) {
         // If we got a newer "best" block, then use that.
         // If we got null when we asked for the newest, then keep
         // the "pre-genesis" hash as "prevHash".
         if (newestHash !== null) prevHash = newestHash;
 
-        // Get the info for the previous block that we're going to build upon.
-        // NOTE: This might be null!
-        let lastBlockInfo = await this._cacheworker.getBlockInfo(prevHash);
-        let prevHeight = lastBlockInfo?.block?.blockHeight ?? -1;
+        // Get a new mineable block from the cache, which will include transactions, etc.
+        let b = await this._cacheworker.makeMineableBlock(reward, destination);
 
-        let b = new RealBadBlock();
-        b.prevHash = prevHash;
-        b.blockHeight = prevHeight + 1;
-        b.difficulty = lastBlockInfo?.state?.nextBlockDifficulty ?? baseDifficulty;
-        b.miningReward = reward;
-        b.rewardDestination = destination;
-        //TODO: Add transactions in here somewhere!
-
-        // If the block has changed, then update the worker.
+        // The block has changed, so update the worker.
         // Note: We will just "abandon" old workers and they will
         //       get garbage collected.
         worker = await new MineWorker(b);
