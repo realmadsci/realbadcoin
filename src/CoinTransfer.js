@@ -96,7 +96,6 @@ class CoinTransfer extends React.Component {
                                     <AccountBalanceWalletRoundedIcon />
                                     </InputAdornment>
                                 ),
-                                //typographyProps: {{variant: "hexblob"}},
                             }}
                         />
                     }
