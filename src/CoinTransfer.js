@@ -1,12 +1,12 @@
 // Send "coins" to target destinations
 import * as React from 'react';
 
+import Autocomplete from '@mui/material/Autocomplete';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import Stack from '@mui/material/Stack';
 
-import AccountBalanceRoundedIcon from '@mui/icons-material/AccountBalanceRounded';
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
 
 import {
@@ -64,7 +64,7 @@ class CoinTransfer extends React.Component {
     }
 
     render() {
-        let moneyPrefix = {
+        const moneyPrefix = {
             startAdornment: (
                 <InputAdornment position="start">
                 {"\u211C"}
@@ -72,20 +72,36 @@ class CoinTransfer extends React.Component {
             ),
         };
 
+        const accountList = Object.keys(this.props.lstate?.accounts ?? {});
+
         return (
-            <Stack component="form" autoComplete="off" spacing={1} sx={{p:1}}>
-                <TextField
-                    label="Destination Wallet"
-                    variant="filled"
-                    InputProps={{
-                        startAdornment: (
-                            <InputAdornment position="start">
-                            <AccountBalanceWalletRoundedIcon />
-                            </InputAdornment>
-                        ),
-                    }}
-                    value={this.state.dest}
-                    onChange={e => { this.setState({ dest: e.target.value }); }}
+            <Stack
+                component="form"
+                autoComplete="off"
+                spacing={1}
+                sx={{p:1}}
+            >
+                <Autocomplete
+                    freeSolo
+                    options={accountList}
+                    renderInput={(params)=>
+                        <TextField
+                            {...params}
+                            label="Destination Wallet"
+                            //variant="filled"
+                            InputProps={{
+                                ...params.InputProps,
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                    <AccountBalanceWalletRoundedIcon />
+                                    </InputAdornment>
+                                ),
+                                //typographyProps: {{variant: "hexblob"}},
+                            }}
+                        />
+                    }
+                    inputValue={this.state.dest}
+                    onInputChange={(e, newValue) => { this.setState({ dest: newValue }); }}
                 />
                 <TextField
                     label="Amount to Transfer"
