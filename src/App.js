@@ -127,7 +127,7 @@ class App extends React.Component {
     if ("newTx" in d) {
       // Try to add it to the tx pool.
       // If it's any good, then ship it to all our friends as well!
-      console.error("Got new transaction from " + peer + ": " + JSON.stringify(d.newTx));
+      //console.log("Got new transaction from " + peer + ": " + JSON.stringify(d.newTx));
       if (await this._cacheworker.addTransaction(d.newTx)) {
         this._conn.broadcast(
           JSON.stringify({
@@ -162,53 +162,37 @@ class App extends React.Component {
     let reward = 100;
     let sealAttempts = 4e5; // How many attempts to make per sealing loop
     while (true) {
-      // Grab the newest block
-      // NOTE: This will return null if there aren't any blocks yet!
-      let newestHash = await this._cacheworker.bestBlockHash;
+      // Get a new mineable block from the cache, which will include up-to-date list of transactions, etc.
+      let unsealed = await this._cacheworker.makeMineableBlock(reward, destination);
+      unsealed.nonce = Math.round(Math.random() * 2**32);
+      console.log("Set up to mine block: " + JSON.stringify(unsealed));
 
-      // Only need to reset the worker if the "best" is updated somehow.
-      // This will be true if a new "best block" arrives (or we make one!).
-      if (prevHash !== newestHash) {
-        // If we got a newer "best" block, then use that.
-        // If we got null when we asked for the newest, then keep
-        // the "pre-genesis" hash as "prevHash".
-        if (newestHash !== null) prevHash = newestHash;
+      // The block has changed, so update the worker.
+      // Note: We just "abandon" old workers and they will get garbage collected.
+      worker = await new MineWorker(unsealed);
 
-        // Get a new mineable block from the cache, which will include transactions, etc.
-        let b = await this._cacheworker.makeMineableBlock(reward, destination);
-
-        console.log("Setting up to mine block: " + JSON.stringify(b));
-
-        // The block has changed, so update the worker.
-        // Note: We will just "abandon" old workers and they will
-        //       get garbage collected.
-        worker = await new MineWorker(b);
+      let before = Date.now();
+      let b = await worker.tryToSeal(sealAttempts);
+      if (b === null) {
+        // Didn't get one.
+        // Adjust the mining length to try and hit a target time per loop
+        let after = Date.now();
+        let delta = after - before;
+        let errorRatio = delta / (8 * 1000); // Aiming for 8 seconds per cycle. Would try for less, but Brave keeps crashing with "sbox out of memory" or something...
+        // Exponential moving average (EMA) approximation
+        // NOTE: We clamp the error ratio between 0 and 2 so that even if we get EXTREMELY long gaps we
+        // don't adjust more than 1/N in either direction!
+        errorRatio = Math.min(2, errorRatio);
+        const N = 40; // Number of cycles of "smoothing" effect.
+        sealAttempts = Math.round(sealAttempts * (1 + (1 - errorRatio) / N));
+        console.log("Mining time = " + delta.toString() + " ms, errorRatio = " + errorRatio.toString() + ", attempts = " + sealAttempts.toString());
       }
-
-      if (worker !== null) {
-        let before = Date.now();
-        let b = await worker.tryToSeal(sealAttempts);
-        if (b === null) {
-          // Didn't get one.
-          // Adjust the mining length to try and hit a target time per loop
-          let after = Date.now();
-          let delta = after - before;
-          let errorRatio = delta / (5 * 1000); // Aiming for 5 seconds per cycle. Would try for less, but Brave keeps crashing with "sbox out of memory" or something...
-          // Exponential moving average (EMA) approximation
-          // NOTE: We clamp the error ratio between 0 and 2 so that even if we get EXTREMELY long gaps we
-          // don't adjust more than 1/N in either direction!
-          errorRatio = Math.min(2, errorRatio);
-          const N = 40; // Number of cycles of "smoothing" effect.
-          sealAttempts = Math.round(sealAttempts * (1 + (1 - errorRatio) / N));
-          //console.log("Mining time = " + delta.toString() + " ms, errorRatio = " + errorRatio.toString() + ", attempts = " + sealAttempts.toString());
-        }
-        else {
-          // We got one!
-          // Pretend like we sent it to ourselves, so it will get cached and broadcasted.
-          this.handlePeerData(this._conn.myId, JSON.stringify({
-            newBlock: b,
-          }));
-        }
+      else {
+        // We got one!
+        // Pretend like we sent it to ourselves, so it will get cached and broadcasted.
+        this.handlePeerData(this._conn.myId, JSON.stringify({
+          newBlock: b,
+        }));
       }
     }
   }
