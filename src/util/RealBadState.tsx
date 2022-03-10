@@ -226,9 +226,12 @@ export class RealBadLedgerState {
         }
         else {
             let errorRatio = blockTimeDelta / (15 * 1000); // Targeting 15 seconds per block
-            // IIR "leaky integrator" low-pass filter:
-            let alpha = 0.01;
-            s.nextBlockDifficulty = Math.round(this.nextBlockDifficulty * ((1-alpha) + alpha / errorRatio));
+            // Exponential moving average (EMA) approximation
+            // NOTE: We clamp the error ratio between 0 and 2 so that even if we get EXTREMELY long gaps we
+            // don't adjust more than 1/N in either direction!
+            errorRatio = Math.min(2, errorRatio);
+            const N = 40; // Number of blocks of "smoothing" effect.
+            s.nextBlockDifficulty = Math.round(this.nextBlockDifficulty * (1 + (1 - errorRatio) / N));
         }
         //console.log("Target difficulty after block " + s.lastBlockHeight.toString() + " is " + s.nextBlockDifficulty.toString());
 

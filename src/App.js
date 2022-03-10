@@ -171,9 +171,12 @@ class App extends React.Component {
           let after = new Date();
           let delta = after - before;
           let errorRatio = delta / (5 * 1000); // Aiming for 5 seconds per cycle. Would try for less, but Brave keeps crashing with "sbox out of memory" or something...
-          // IIR "leaky integrator" low-pass filter:
-          let alpha = 0.03;
-          sealAttempts = Math.round(sealAttempts * (1-alpha) + sealAttempts * alpha / errorRatio);
+          // Exponential moving average (EMA) approximation
+          // NOTE: We clamp the error ratio between 0 and 2 so that even if we get EXTREMELY long gaps we
+          // don't adjust more than 1/N in either direction!
+          errorRatio = Math.min(2, errorRatio);
+          const N = 40; // Number of cycles of "smoothing" effect.
+          sealAttempts = Math.round(sealAttempts * (1 + (1 - errorRatio) / N));
           //console.log("Mining time = " + delta.toString() + " ms, errorRatio = " + errorRatio.toString() + ", attempts = " + sealAttempts.toString());
         }
         else {
