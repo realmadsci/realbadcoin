@@ -300,7 +300,7 @@ export class RealBadBlock {
     tryToSeal(num_attempts) {
         let maxHash = (1n << 256n) / BigInt(this.difficulty);
         // If the timestamp already has a value, don't let it go BACKWARD
-        this.timestamp = Math.max(this.timestamp ?? Date.now(), Date.now());
+        this.timestamp = new Date(Math.max(this.timestamp ?? Date.now(), Date.now()));
 
         for (let i = 0; i < num_attempts; i++) {
             let hash = this.hash;
@@ -380,7 +380,7 @@ export class RealBadBlock {
 
                 // All the transactions have valid signatures and contain correct data types
                 && Array.isArray(this.transactions)
-                && asyncEvery(this.transactions, async(t)=>{
+                && await asyncEvery(this.transactions, async(t)=>{
                     return (t instanceof RealBadTransaction) && await t.isValid();
                 })
 

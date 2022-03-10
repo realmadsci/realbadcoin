@@ -15,14 +15,18 @@ class CacheWorker {
     #cache = new RealBadCache();
 
     // Validate and possibly add a block to the cache
-    addBlock(block, source) {
+    async addBlock(block, source) {
         let b = RealBadBlock.coerce(block);
-        return this.#cache.addBlock(b, source);
+        return await this.#cache.addBlock(b, source);
     }
 
     // Validate and possibly add a list of blocks to the cache
-    addBlocks(blockList, source) {
-        return blockList.map((b, i)=>this.addBlock(b, source));
+    async addBlocks(blockList, source) {
+        let allGood = true;
+        for (let b of blockList) {
+            allGood = allGood && await this.addBlock(b, source);
+        }
+        return allGood;
     }
 
     // Return all the info about one block from the cache
@@ -53,9 +57,9 @@ class CacheWorker {
 
     // Validate and possibly add a transaction into the memory pool.
     // If the transaction is VALID and NEW, then return true.
-    addTransaction(transaction) {
+    async addTransaction(transaction) {
         let tx = RealBadTransaction.coerce(transaction);
-        return this.#cache.addTransaction(tx);
+        return await this.#cache.addTransaction(tx);
     }
 
     makeMineableBlock(reward, destination) {

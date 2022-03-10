@@ -19,6 +19,11 @@ import { bytesToHex, hexToBytes, utf8ToBytes } from '@noble/hashes/utils';
 // Get crypto.getRandomValues in node.js environment:
 import { webcrypto as crypto } from 'crypto';
 
+async function asyncForEach(arr, predicate) {
+	for (let e of arr) {
+		await predicate(e);
+	}
+};
 
 // We need a pubkey/privkey pair for sealing transactions:
 class AccountMock {
@@ -324,7 +329,7 @@ test('May the best chain win', async ()=>{
         expect(await b.isValid(difficulty1)).toBe(true);
 
         // Add it to our cache
-        c.addBlock(b, null, difficulty1);
+        await c.addBlock(b, null, difficulty1);
 
         prevHash = b.hash;
         prevHeight = b.blockHeight;
@@ -347,7 +352,7 @@ test('May the best chain win', async ()=>{
         expect(await b.isValid()).toBe(true);
 
         // Add it to our cache
-        c.addBlock(b);
+        await c.addBlock(b);
 
         prevHash = b.hash;
         prevHeight = b.blockHeight;
@@ -397,9 +402,9 @@ test('Insert all blocks backwards still processes correctly', async ()=>{
     // Dump the list into the cache in reverse order
     let c = new RealBadCache();
     c.genesisDifficulty = 0; // Just ignore difficulty target!
-    l.reverse().forEach((b, i)=>{
+    await asyncForEach(l.reverse(), async b=>{
         expect(c.bestBlockHash).toBe(null);
-        c.addBlock(b, null, difficulty);
+        await c.addBlock(b, null, difficulty);
     });
     l.reverse(); // Flip it back forward.
     expect(c.bestBlockHash).toBe(l[8].hash);
@@ -407,12 +412,12 @@ test('Insert all blocks backwards still processes correctly', async ()=>{
     // Dump the list into the cache in *almost* reverse order
     let c2 = new RealBadCache();
     c2.genesisDifficulty = 0; // Just ignore difficulty target!
-    c2.addBlock(l[0], null, difficulty);
+    await c2.addBlock(l[0], null, difficulty);
     expect(c2.bestBlockHash).toBe(l[0].hash);
-    c2.addBlock(l[1], null, difficulty);
-    l.slice(2).reverse().forEach((b, i)=>{
+    await c2.addBlock(l[1], null, difficulty);
+    await asyncForEach(l.slice(2).reverse(), async b=>{
         expect(c2.bestBlockHash).toBe(l[1].hash);
-        c2.addBlock(b, null, difficulty);
+        await c2.addBlock(b, null, difficulty);
     });
 
     expect(c2.bestBlockHash).toBe(l[8].hash);

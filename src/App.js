@@ -106,9 +106,7 @@ class App extends React.Component {
 
     // Shiny new blocks that we requested have arrived!
     if ("blockList" in d) {
-      if (
-        (await this._cacheworker.addBlocks(d.blockList)).some(r=>(r===true))
-      ) {
+      if (await this._cacheworker.addBlocks(d.blockList)) {
         // We added a new block to the cache, so update our UI!
         await this.cacheHasNewBlock();
       }
@@ -188,12 +186,12 @@ class App extends React.Component {
       }
 
       if (worker !== null) {
-        let before = new Date()
+        let before = Date.now();
         let b = await worker.tryToSeal(sealAttempts);
         if (b === null) {
           // Didn't get one.
           // Adjust the mining length to try and hit a target time per loop
-          let after = new Date();
+          let after = Date.now();
           let delta = after - before;
           let errorRatio = delta / (5 * 1000); // Aiming for 5 seconds per cycle. Would try for less, but Brave keeps crashing with "sbox out of memory" or something...
           // Exponential moving average (EMA) approximation

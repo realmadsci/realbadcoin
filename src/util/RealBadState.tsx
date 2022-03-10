@@ -269,13 +269,13 @@ export class RealBadCache {
     genesisDifficulty = 2e6;    // Difficulty of genesis blocks
 
     // Only accept good RealBadBlocks into our cache!
-    addBlock(block, source, minDifficulty=this.minDifficulty) {
+    async addBlock(block, source, minDifficulty=this.minDifficulty) {
         try {
             let hash = block.hash; // Save us the trouble of recomputing this tons of times!
             if (
                 // Make sure its a valid sealed block
                 (block instanceof RealBadBlock)
-                && block.isValid(minDifficulty)
+                && await block.isValid(minDifficulty)
 
                 // Also make sure we haven't seen it before
                 && !(hash in this._blocks)
@@ -488,7 +488,7 @@ export class RealBadCache {
         b.rewardDestination = destination;
         // Set the block's timestamp to at least _slightly_ ahead of the last block so that we
         // don't allow timestamps to go backward!
-        b.timestamp = 1 + (lastBlock?.timestamp ?? Date.now());
+        b.timestamp = new Date(Number(lastBlock?.timestamp ?? Date.now()) + 1);
 
         // Try and add as many transactions to the block as will create a valid state
         let s = lastBlockState.clone();
