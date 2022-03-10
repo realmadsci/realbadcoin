@@ -200,7 +200,7 @@ export class RealBadLedgerState {
         // First just check if the new block fits as the next block in the block chain
         if (block.prevHash !== this.lastBlockHash) return null;
         if (block.blockHeight !== this.lastBlockHeight + 1) return null;
-        if (block.timestamp > new Date()) return null; // No blocks from the future!
+        if (block.timestamp > Date.now() + 5*1000) return null; // No blocks from the (distant) future!
         if ((block.blockHeight !== 0) && (block.timestamp < this.lastBlockTimestamp)) return null; // Block timestamps must be monotonically increasing!
 
         s.lastBlockHash = block.hash;
@@ -451,8 +451,8 @@ export class RealBadCache {
                 (tx instanceof RealBadTransaction)
                 && await tx.isValid()
 
-                // Make sure it's timestamp isn't in the future or too far in the past
-                && (tx.timestamp < Date.now())
+                // Make sure it's timestamp isn't (too far) in the future or too far in the past
+                && (tx.timestamp < Date.now() + 5*1000)
                 && (Date.now() - tx.timestamp < 10*60*1000) // We only keep them for 10 minutes
 
                 // Also quit early if we already have this one!
@@ -476,9 +476,9 @@ export class RealBadCache {
 
         // Get the info for the previous block that we're going to build upon.
         // NOTE: This might be null!
-        let lastBlockInfo = this.getBlock(prevHash);
+        let lastBlock = this.getBlock(prevHash);
         let lastBlockState = this.getState(prevHash) ?? new RealBadLedgerState(this.genesisDifficulty);
-        let prevHeight = lastBlockInfo?.blockHeight ?? -1;
+        let prevHeight = lastBlock?.blockHeight ?? -1;
 
         let b = new RealBadBlock();
         b.prevHash = prevHash;
@@ -486,6 +486,9 @@ export class RealBadCache {
         b.difficulty = lastBlockState.nextBlockDifficulty;
         b.miningReward = reward;
         b.rewardDestination = destination;
+        // Set the block's timestamp to at least _slightly_ ahead of the last block so that we
+        // don't allow timestamps to go backward!
+        b.timestamp = 1 + (lastBlock?.timestamp ?? Date.now());
 
         // Try and add as many transactions to the block as will create a valid state
         let s = lastBlockState.clone();

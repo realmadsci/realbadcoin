@@ -129,6 +129,7 @@ class App extends React.Component {
     if ("newTx" in d) {
       // Try to add it to the tx pool.
       // If it's any good, then ship it to all our friends as well!
+      console.error("Got new transaction from " + peer + ": " + JSON.stringify(d.newTx));
       if (await this._cacheworker.addTransaction(d.newTx)) {
         this._conn.broadcast(
           JSON.stringify({

@@ -299,7 +299,8 @@ export class RealBadBlock {
     // Try up to num_attempts times before giving up.
     tryToSeal(num_attempts) {
         let maxHash = (1n << 256n) / BigInt(this.difficulty);
-        this.timestamp = new Date();
+        // If the timestamp already has a value, don't let it go BACKWARD
+        this.timestamp = Math.max(this.timestamp ?? Date.now(), Date.now());
 
         for (let i = 0; i < num_attempts; i++) {
             let hash = this.hash;
