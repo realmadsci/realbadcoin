@@ -9,7 +9,7 @@ import {
 } from './AccountView.js';
 import { ConnectionManager, PeerApp } from './ConnectionManager';
 import BlockView from './BlockView';
-import TransactionView from './TransactionView';
+import CoinTransfer from './CoinTransfer';
 
 // For the MineWorker:
 import * as Comlink from 'comlink';
@@ -60,6 +60,14 @@ class App extends React.Component {
         have: await this._cacheworker.bestBlockHash,
         want: null, // Null means "give me your best chain"
       }
+    }));
+  }
+
+  // Submit a new transaction to be included in future blocks
+  async submitTransaction(tx) {
+    // Just fake it as if we "received" it from ourselves and then we'll rebroadcast it
+    await this.handlePeerData(this._conn.myId, JSON.stringify({
+      newTx: tx,
     }));
   }
 
@@ -116,6 +124,20 @@ class App extends React.Component {
         blockList: blocks,
       }));
     }
+
+    // Yay! A new transaction has arrived!
+    if ("newTx" in d) {
+      // Try to add it to the tx pool.
+      // If it's any good, then ship it to all our friends as well!
+      if (await this._cacheworker.addTransaction(d.newTx)) {
+        this._conn.broadcast(
+          JSON.stringify({
+            newTx: d.newTx, // Note: Extracting just the one Tx in case someone sends us a multiple-message?
+          }),
+          [peer], // Don't broadcast BACK to the person who told us about this!
+        );
+      }
+    }
   }
 
   // Set this up as a callback from the cache when
@@ -155,6 +177,8 @@ class App extends React.Component {
 
         // Get a new mineable block from the cache, which will include transactions, etc.
         let b = await this._cacheworker.makeMineableBlock(reward, destination);
+
+        console.log("Setting up to mine block: " + JSON.stringify(b));
 
         // The block has changed, so update the worker.
         // Note: We will just "abandon" old workers and they will
@@ -213,10 +237,13 @@ class App extends React.Component {
           <AccountView pubKeyHex={this.state.pubKeyHex} privKeyHex={this.state.privKeyHex} lstate={this.state.topLState} />
         </Paper>
         <Paper elevation={8}>
-          <BlockView hash={this.state.topHash} block={this.state.topBlock} lstate={this.state.topLState} />
+          <PeerApp conn={this._conn} />
         </Paper>
         <Paper elevation={8}>
-          <PeerApp conn={this._conn} />
+          <CoinTransfer id={this._id} submit={tx=>this.submitTransaction(tx)} lstate={this.state.topLState} />
+        </Paper>
+        <Paper elevation={8}>
+          <BlockView hash={this.state.topHash} block={this.state.topBlock} lstate={this.state.topLState} />
         </Paper>
       </Box>
     );
