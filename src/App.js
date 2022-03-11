@@ -18,6 +18,10 @@ import {
   RealBadBlock
 } from './util/RealBadCoin.tsx';
 
+import {
+  RealBadLedgerState
+} from './util/RealBadState.tsx';
+
 const MineWorker = Comlink.wrap(new Worker(new URL("./util/MineWorker.js", import.meta.url)));
 const CacheWorker = Comlink.wrap(new Worker(new URL("./util/CacheWorker.js", import.meta.url)));
 
@@ -50,6 +54,14 @@ class App extends React.Component {
     this.state.privKeyHex = await this._id.getPrivKeyHex();
     this.state.pubKeyHex = await this._id.getPubKeyHex();
     this._cacheworker = await new CacheWorker();
+
+    // Restore the checkpoint if we have one
+    const checkpoint = JSON.parse(sessionStorage.getItem("checkpoint"));
+    const block = checkpoint?.block;
+    const state = checkpoint?.state;
+    if (block && state) {
+      await this._cacheworker.restoreCheckpoint(block, state);
+    }
   }
 
   async handleNewPeer(peer) {
@@ -147,6 +159,23 @@ class App extends React.Component {
       let bi = await this._cacheworker.getBlockInfo(topHash);
       //console.log("Best block is " + topHash + " at height " + bi.block.blockHeight);
 
+      // Get the block 100 blocks above this "best" block and use it as a checkpoint
+      const checkpoint = JSON.parse(sessionStorage.getItem("checkpoint"));
+      const checkpointHash = checkpoint?.hash;
+      const chain = await this._cacheworker.getChain(topHash, checkpoint?.parentHash);
+      // If the checkpoint hash has changed, then update it in storage
+      const checkIndex = Math.max(0, chain.length - 1 - 100);
+      if (chain[checkIndex] !== checkpointHash) {
+        const checkpointHash = chain[checkIndex];
+        const checkpointInfo = await this._cacheworker.getBlockInfo(checkpointHash);
+        sessionStorage.setItem("checkpoint", JSON.stringify({
+          block: RealBadBlock.coerce(checkpointInfo.block),
+          state: RealBadLedgerState.coerce(checkpointInfo.state),
+          hash: checkpointHash,
+          parentHash: checkpointInfo.block.prevHash,
+        }));
+      }
+
       // Automatically jump to the selected state
       this.setState({
         topHash: topHash,
@@ -157,7 +186,6 @@ class App extends React.Component {
   }
 
   async miningLoop(destination) {
-    let prevHash = '00'.repeat(32);
     let worker = null;
     let reward = 100;
     let sealAttempts = 4e5; // How many attempts to make per sealing loop

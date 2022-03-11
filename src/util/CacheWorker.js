@@ -8,7 +8,8 @@ import {
 } from './RealBadCoin.tsx';
 
 import {
-    RealBadCache
+    RealBadCache,
+    RealBadLedgerState
 } from './RealBadState.tsx';
 
 class CacheWorker {
@@ -27,6 +28,13 @@ class CacheWorker {
             allGood = allGood && await this.addBlock(b, source);
         }
         return allGood;
+    }
+
+    restoreCheckpoint(block, state) {
+        this.#cache.restoreCheckpoint(
+            RealBadBlock.coerce(block),
+            RealBadLedgerState.coerce(state),
+        );
     }
 
     // Return all the info about one block from the cache

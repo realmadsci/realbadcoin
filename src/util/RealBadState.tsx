@@ -7,8 +7,6 @@ import {
     RealBadBlock
 } from './RealBadCoin.tsx';
 
-import { hexToBigint, bigintToHex } from 'bigint-conversion';
-
 export class RealBadAccountState {
     balance = 0;
     nonce = 0;
@@ -39,18 +37,38 @@ export class RealBadNftState {
     }
 }
 
-// Exception thrown when 
+// Exception thrown when a transaction is invalid
 export class RealBadInvalidTransaction {
     message = "";
     transaction = null;
+    lastBlockHash = null;
 
-    constructor(message, transaction) {
+    constructor(message, transaction, lastBlockHash) {
         this.message = message;
         this.transaction = transaction;
+        this.lastBlockHash = lastBlockHash;
     }
 
     toString() {
-      return "Bad Transaction:\n" + this.message + "\n" + this.transaction.toString();
+        if (this.lastBlockHash !== null) {
+            return "Bad Transaction in " + this.lastBlockHash.toString() + ":\n" + this.message + "\n" + this.transaction.toString();
+        } else {
+            return "Bad Transaction:\n" + this.message + "\n" + this.transaction.toString();
+        }
+    };
+}
+
+export class RealBadInvalidBlock {
+    message = "";
+    blockHash = "";
+
+    constructor(message, blockHash) {
+        this.message = message;
+        this.blockHash = blockHash;
+    }
+
+    toString() {
+      return "Bad Block " + this.blockHash.toString() + ":\n" + this.message;
     };
 }
 
@@ -72,6 +90,10 @@ export class RealBadLedgerState {
     // It is used to determine which chain represents the highest block.
     totalDifficulty = 0n;
 
+    // All errors for the entire chain up until this point.
+    // Errors just keep stacking, but only one is needed to invalidate a chain!
+    errors = [];
+
     // Can assign the genesis block difficulty in the constructor
     constructor(genesisDifficulty = 2e6) {
         this.nextBlockDifficulty = genesisDifficulty;
@@ -86,6 +108,7 @@ export class RealBadLedgerState {
         nextBlockDifficulty,
         lastBlockTimestamp,
         totalDifficulty,
+        errors,
     }) {
         let r = new RealBadLedgerState();
         Object.keys(accounts).forEach(k=>{
@@ -98,22 +121,37 @@ export class RealBadLedgerState {
         r.lastBlockHash = lastBlockHash;
         r.lastBlockHeight = lastBlockHeight;
         r.nextBlockDifficulty = nextBlockDifficulty;
-        r.lastBlockTimestamp = lastBlockTimestamp;
-        r.totalDifficulty = totalDifficulty;
+        r.lastBlockTimestamp = new Date(lastBlockTimestamp);
+        r.totalDifficulty = BigInt(totalDifficulty);
+        r.errors = errors.map(e=>{
+            if ("blockHash" in e) {
+                return new RealBadInvalidBlock(e.message, e.blockHash);
+            }
+            else {
+                return new RealBadInvalidTransaction(e.message, e.transaction, e.lastBlockHash);
+            }
+        });
         return r;
+    }
+
+    // Flatten down to values that can be saved as JSON
+    toJSON() {
+        return {
+            accounts: this.accounts,
+            nfts: this.nfts,
+            transactionFees: this.transactionFees,
+            lastBlockHash: this.lastBlockHash,
+            lastBlockHeight: this.lastBlockHeight,
+            nextBlockDifficulty: this.nextBlockDifficulty,
+            lastBlockTimestamp: this.lastBlockTimestamp,
+            totalDifficulty: this.totalDifficulty.toString(),
+            errors: this.errors,
+        };
     }
 
     // Return a deep copy clone of the state
     clone() {
-        // Shallow copy first:
-        let copy = Object.assign({}, this);
-        // JSON doesn't know what to do with BigInt, so we have to help it
-        copy.totalDifficulty = bigintToHex(copy.totalDifficulty);
-        // Force a total deep copy:
-        copy = RealBadLedgerState.coerce(JSON.parse(JSON.stringify(copy)));
-        // Fix totalDifficulty back:
-        copy.totalDifficulty = hexToBigint(copy.totalDifficulty);
-        return copy;
+        return RealBadLedgerState.coerce(JSON.parse(JSON.stringify(this)));
     }
 
     // Try and apply a transaction to the current state
@@ -121,9 +159,9 @@ export class RealBadLedgerState {
     // Assumes that you've already checked that the transaction is VALID!
     tryTransaction(t) {
         if (t.txData instanceof RealBadCoinTransfer) {
-            if (!(t.source in this.accounts)) throw new RealBadInvalidTransaction("Account tried to send coins before it existed", t);
-            if (t.sourceNonce !== this.accounts[t.source].nonce + 1) throw new RealBadInvalidTransaction("Incorrect nonce", t);
-            if (t.txData.amount + t.transactionFee > this.accounts[t.source].balance) throw new RealBadInvalidTransaction("Insufficient balance", t);
+            if (!(t.source in this.accounts)) throw new RealBadInvalidTransaction("Account tried to send coins before it existed", t, this.lastBlockHash);
+            if (t.sourceNonce !== this.accounts[t.source].nonce + 1) throw new RealBadInvalidTransaction("Incorrect nonce", t, this.lastBlockHash);
+            if (t.txData.amount + t.transactionFee > this.accounts[t.source].balance) throw new RealBadInvalidTransaction("Insufficient balance", t, this.lastBlockHash);
 
             // Consume the money spent from this account:
             this.accounts[t.source].nonce++;
@@ -136,14 +174,14 @@ export class RealBadLedgerState {
         }
         else if (t.txData instanceof RealBadNftMint) {
             // See if the NFT already exists
-            if (t.txData.nftId in this.nfts) throw new RealBadInvalidTransaction("NFT Mint attempted on already-existing NFT ID", t);
+            if (t.txData.nftId in this.nfts) throw new RealBadInvalidTransaction("NFT Mint attempted on already-existing NFT ID", t, this.lastBlockHash);
 
             // Accounts only have to exist and have coins if they are paying a Tx fee.
             // Otherwise they don't need to exist and they also don't increment their nonce!
             if (t.transactionFee > 0) {
-                if (!(t.source in this.accounts)) throw new RealBadInvalidTransaction("Account tried to pay NFT Mint txFee before it existed", t);
-                if (t.sourceNonce !== this.accounts[t.source].nonce + 1) throw new RealBadInvalidTransaction("Incorrect nonce for NFT Mint txFee", t);
-                if (t.transactionFee > this.accounts[t.source].balance) throw new RealBadInvalidTransaction("Insufficient balance for NFT Mint txFee", t);
+                if (!(t.source in this.accounts)) throw new RealBadInvalidTransaction("Account tried to pay NFT Mint txFee before it existed", t, this.lastBlockHash);
+                if (t.sourceNonce !== this.accounts[t.source].nonce + 1) throw new RealBadInvalidTransaction("Incorrect nonce for NFT Mint txFee", t, this.lastBlockHash);
+                if (t.transactionFee > this.accounts[t.source].balance) throw new RealBadInvalidTransaction("Insufficient balance for NFT Mint txFee", t, this.lastBlockHash);
             }
 
             if (t.transactionFee > 0) {
@@ -163,16 +201,16 @@ export class RealBadLedgerState {
         }
         else if (t.txData instanceof RealBadNftTransfer) {
             let nftid = t.txData.nftId;
-            if (!(nftid in this.nfts)) throw new RealBadInvalidTransaction("NFT Transfer attempted on non-existent NFT ID", t);
-            if (this.nfts[nftid].owner !== t.source) throw new RealBadInvalidTransaction("NFT Transfer attempted by non-owner of NFT", t);
-            if (t.txData.nftNonce !== this.nfts[nftid].nonce + 1) throw new RealBadInvalidTransaction("Incorrect NFT nonce", t);
+            if (!(nftid in this.nfts)) throw new RealBadInvalidTransaction("NFT Transfer attempted on non-existent NFT ID", t, this.lastBlockHash);
+            if (this.nfts[nftid].owner !== t.source) throw new RealBadInvalidTransaction("NFT Transfer attempted by non-owner of NFT", t, this.lastBlockHash);
+            if (t.txData.nftNonce !== this.nfts[nftid].nonce + 1) throw new RealBadInvalidTransaction("Incorrect NFT nonce", t, this.lastBlockHash);
 
             // Accounts only have to exist and have coins if they are paying a Tx fee.
             // Otherwise they don't need to exist and they also don't increment their nonce!
             if (t.transactionFee > 0) {
-                if (!(t.source in this.accounts)) throw new RealBadInvalidTransaction("Account tried to pay NFT Mint txFee before it existed", t);
-                if (t.sourceNonce !== this.accounts[t.source].nonce + 1) throw new RealBadInvalidTransaction("Incorrect nonce for NFT Mint txFee", t);
-                if (t.transactionFee > this.accounts[t.source].balance) throw new RealBadInvalidTransaction("Insufficient balance for NFT Mint txFee", t);
+                if (!(t.source in this.accounts)) throw new RealBadInvalidTransaction("Account tried to pay NFT Mint txFee before it existed", t, this.lastBlockHash);
+                if (t.sourceNonce !== this.accounts[t.source].nonce + 1) throw new RealBadInvalidTransaction("Incorrect nonce for NFT Mint txFee", t, this.lastBlockHash);
+                if (t.transactionFee > this.accounts[t.source].balance) throw new RealBadInvalidTransaction("Insufficient balance for NFT Mint txFee", t, this.lastBlockHash);
             }
 
             if (t.transactionFee > 0) {
@@ -198,14 +236,14 @@ export class RealBadLedgerState {
         let s = this.clone();
 
         // First just check if the new block fits as the next block in the block chain
-        if (block.prevHash !== this.lastBlockHash) return null;
-        if (block.blockHeight !== this.lastBlockHeight + 1) return null;
-        if (block.timestamp > Date.now() + 5*1000) return null; // No blocks from the (distant) future!
-        if ((block.blockHeight !== 0) && (block.timestamp < this.lastBlockTimestamp)) return null; // Block timestamps must be monotonically increasing!
+        if (block.prevHash !== this.lastBlockHash) s.errors.push(new RealBadInvalidBlock("Block does not point at this state's prevHash", block.hash));
+        if (block.blockHeight !== this.lastBlockHeight + 1) s.errors.push(new RealBadInvalidBlock("Block height is not lastBlockHeight + 1", block.hash));
+        if (block.timestamp > Date.now() + 5*1000) s.errors.push(new RealBadInvalidBlock("Block timestamp is from the future!", block.hash));
+        if ((block.blockHeight !== 0) && (block.timestamp < this.lastBlockTimestamp)) s.errors.push(new RealBadInvalidBlock("Block timestamp is not greater than last block's timestamp", block.hash));
 
         s.lastBlockHash = block.hash;
         s.lastBlockHeight = block.blockHeight;
-        let blockTimeDelta = (block.blockHeight === 0) ? 0 : block.timestamp - this.lastBlockTimestamp;
+        let blockTimeDelta = (block.blockHeight === 0) ? 0 : Math.max(0, block.timestamp - this.lastBlockTimestamp);
         s.lastBlockTimestamp = block.timestamp;
 
         // The difficulty metric is proportional to how low the hash is relative to the "zero difficulty" level.
@@ -214,7 +252,7 @@ export class RealBadLedgerState {
         s.totalDifficulty = this.totalDifficulty + RealBadBlock.difficultyMetric(s.lastBlockHash);
 
         // Check if they tried hard enough
-        if (block.difficulty < this.nextBlockDifficulty) return null; // They didn't try and hit the target difficulty!
+        if (block.difficulty < this.nextBlockDifficulty) s.errors.push(new RealBadInvalidBlock("Block's target difficulty is too low", block.hash));
 
         // Re-target the difficulty based on how long this last block took to harvest
         // This uses a long-running "leaky integrator" IIR filter to low-pass filter the block gaps
@@ -241,8 +279,7 @@ export class RealBadLedgerState {
                 s.tryTransaction(t);
             });
         } catch (error) {
-            console.error(error);
-            return null;
+            s.errors.push(error);
         }
 
         // If successful, pay the mining rewards, including the sum of transactionFees from all transactions.
@@ -310,15 +347,9 @@ export class RealBadCache {
                         // Genesis block!
                         this._blocks[h].state = (new RealBadLedgerState(this.genesisDifficulty)).applyBlock(b);
                     }
-                    // ASSUMPTION: Unless this is a genesis block, if it got into _readyBlocks then it's prevHash *is available* in our block cache!
-                    else if (this._blocks[b.prevHash].state === null) {
-                        // The previous state might be null, which means the chain was a bad state.
-                        // This is fine - just propagates this to all children blocks. But that's still a "valid state".
-                        this._blocks[h].state = null;
-                    }
+                    // ASSUMPTION: Unless this is a genesis block, if it got into _readyBlocks then it's prevHash and state *is available* in our block cache!
                     else {
-                        // Yep, we can compute its new state based on its old one.
-                        // The new state might be null if this block is bad.
+                        // The new state might be bad if this block is bad.
                         this._blocks[h].state = this._blocks[b.prevHash].state.applyBlock(b);
                     }
 
@@ -333,7 +364,7 @@ export class RealBadCache {
                     // NOTE: The "best" chain is weighed based on total difficulty to create it, rather than block height!
                     //       Block height is just a human-readable metric and is used to detect genesis blocks.
                     let thisState = this.getState(h);
-                    if (thisState !== null) {
+                    if (thisState.errors.length === 0) {
                         let bestState = this.getState(this._bestBlock);
                         if (
                             (bestState === null) ||
@@ -392,6 +423,18 @@ export class RealBadCache {
                 delete this._txPool[t.txId];
             });
         });
+    }
+
+    // Apply a checkpoint based on known good block
+    // This can let the account get "up to speed" quickly while it then churns through
+    // the process of downloading additional blocks in the background.
+    restoreCheckpoint(block, state) {
+        // Just inject it directly in there and call it our "best":
+        this._bestBlock = block.hash;
+        this._blocks[this._bestBlock] = {
+            block: block,
+            state: state,
+        }
     }
 
     // Return hash of the best block that we know about:

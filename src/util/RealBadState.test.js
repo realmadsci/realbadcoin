@@ -140,7 +140,7 @@ test('Transfers', async ()=>{
     expect(await b2.isValid()).toBe(true);
 
     // It made a valid block, but the ledger ain't going to put up with it!
-    expect(s.applyBlock(b2)).toBe(null);
+    expect(s.applyBlock(b2).errors.length).toBeGreaterThan(0);
 
     // Both members mint NFTs, but only the rich one pays for theirs (the poor guy
     // is mining the block themselves, so they don't need to pay :shrug:)
@@ -233,7 +233,7 @@ test('Transfers', async ()=>{
 
     let s3 = s2.applyBlock(b3);
     // Oops, we forgot to "block chain" that one correctly, so it shouldn't work!
-    expect(s3).toBe(null);
+    expect(s3.errors.length).toBeGreaterThan(0);
 
     // Let's put the hash in and then re-seal:
     b3.prevHash = b2.hash;
@@ -243,7 +243,7 @@ test('Transfers', async ()=>{
     expect(await b3.isValid()).toBe(true);
     // Still nope. Also need the blockHeight to align correctly!
     s3 = s2.applyBlock(b3);
-    expect(s3).toBe(null);
+    expect(s3.errors.length).toBeGreaterThan(0);
 
     // Ok it should work this time
     b3.blockHeight = b2.blockHeight + 1;
