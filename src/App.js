@@ -66,7 +66,7 @@ class App extends React.Component {
 
   async handleNewPeer(peer) {
     // Whenever we get connected to a new peer, ask for all the blocks they know about!
-    //console.log("Pestering peer \"" + peer + "\" with requestBlocks");
+    console.error("Pestering peer \"" + peer + "\" with requestBlocks");
     this._conn.sendToPeer(peer, JSON.stringify({
       requestBlocks: {
         have: await this._cacheworker.bestBlockHash,
@@ -94,6 +94,7 @@ class App extends React.Component {
         let hash = block.hash;
         let oldestParent = (await this._cacheworker.getBlockInfo((await this._cacheworker.getChain(hash))[0])).block;
         if (oldestParent.blockHeight !== 0) {
+          console.error("Requesting gap-filler blocks from peer \"" + peer + "\"");
           this._conn.sendToPeer(peer, JSON.stringify({
             requestBlocks: {
               have: await this._cacheworker.bestBlockHash,
@@ -118,9 +119,14 @@ class App extends React.Component {
 
     // Shiny new blocks that we requested have arrived!
     if ("blockList" in d) {
-      if (await this._cacheworker.addBlocks(d.blockList)) {
-        // We added a new block to the cache, so update our UI!
-        await this.cacheHasNewBlock();
+      console.error("Got " + d.blockList.length.toString() + " blocks from " + peer);
+      // Dump only 100 at a time, so we can keep updating the UI
+      for (let i = 0; i < d.blockList.length; i += 100) {
+        console.log("Feeding " + i.toString() + " to " + (i + 100).toString() + " into cacheworker");
+        if (await this._cacheworker.addBlocks(d.blockList.slice(i, Math.min(i+100, d.blockList.length)))) {
+          // We added a new block to the cache, so update our UI!
+          await this.cacheHasNewBlock();
+        }
       }
     }
 

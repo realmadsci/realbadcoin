@@ -23,11 +23,12 @@ class CacheWorker {
 
     // Validate and possibly add a list of blocks to the cache
     async addBlocks(blockList, source) {
-        let allGood = true;
+        let anyGood = true;
         for (let b of blockList) {
-            allGood = allGood && await this.addBlock(b, source);
+            // WARNING: The order of the operands matters here, due to lazy execution!
+            anyGood = await this.addBlock(b, source) || anyGood;
         }
-        return allGood;
+        return anyGood;
     }
 
     restoreCheckpoint(block, state) {

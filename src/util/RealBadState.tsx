@@ -151,7 +151,7 @@ export class RealBadLedgerState {
 
     // Return a deep copy clone of the state
     clone() {
-        return RealBadLedgerState.coerce(JSON.parse(JSON.stringify(this)));
+        return RealBadLedgerState.coerce(this);
     }
 
     // Try and apply a transaction to the current state
@@ -302,6 +302,7 @@ export class RealBadCache {
     _bestBlock = null;          // Hash of the top-scoring block (i.e. the one with the deepest block chain "strength")
     _txPool = {};               // Pool of un-confirmed transactions that we can try add to a block.
     _recentConfirmedTx = {};    // Pool of recently confirmed transactions so we can avoid repeating them.
+    _lastMiningRoot = null;     // This is the last block we attempted to mine on top of.
     minDifficulty = 256**2;     // Minimum difficulty level of blocks to allow into our cache.
     genesisDifficulty = 2e6;    // Difficulty of genesis blocks
 
@@ -370,7 +371,7 @@ export class RealBadCache {
                             (bestState === null) ||
                             (thisState.totalDifficulty > bestState.totalDifficulty)
                         ) {
-                            this._updateBestBlock(h);
+                            this._bestBlock = h;
                         }
                     }
                 }
@@ -380,49 +381,6 @@ export class RealBadCache {
             console.error(error);
             return false;
         }
-    }
-
-    // Whenever we have chosen a new "best" block, we need to update the transaction pools
-    _updateBestBlock(newBest) {
-        let oldBest = this._bestBlock;
-        this._bestBlock = newBest;
-
-        //TODO: Maybe find a more efficient method for this other
-        // than "construct entire chains and compare them"!
-        let oldChain = this.getChain(oldBest);
-        let newChain = this.getChain(newBest);
-
-        // These are "Removed" blocks. All transactions in them should be added to the tx pool
-        let removedBlocks = oldChain.filter((b, i)=>!newChain.includes(b));
-        removedBlocks.forEach(h=>{
-            let b = this.getBlock(h);
-            b.transactions.forEach(t=>{
-                // Add them to txPool
-                // NOTE: This can cause really really old transactions to reenter the pool. :shrug:
-                this._txPool[t.txId] = t;
-
-                // Remove from recently confirmed pool:
-                delete this._recentConfirmedTx[t.txId];
-            });
-        });
-
-        // These are "Added" blocks. All transactions in them should be removed from the tx pool
-        let addedBlocks = newChain.filter((b, i)=>!oldChain.includes(b));
-        addedBlocks.forEach(h=>{
-            let b = this.getBlock(h);
-            b.transactions.forEach(t=>{
-                // Add them to recently confirmed pool, but only if they are "recent":
-                if (
-                    (t.timestamp < Date.now()) &&
-                    ((Date.now() - t.timestamp) < 10*60*1000)
-                ) {
-                    this._recentConfirmedTx[t.txId] = t;
-                }
-
-                // Remove from txPool:
-                delete this._txPool[t.txId];
-            });
-        });
     }
 
     // Apply a checkpoint based on known good block
@@ -516,6 +474,50 @@ export class RealBadCache {
     // whatever valid transactions we can grab from the txPool
     makeMineableBlock(reward, destination) {
         let prevHash = this.bestBlockHash ?? '00'.repeat(32);
+
+        if (this._lastMiningRoot !== prevHash) {
+            // Need to reshuffle the transaction pools if the mining root is different this time!
+
+            //TODO: Maybe find a more efficient method for this other
+            // than "construct entire chains and compare them"!
+            let oldChain = this.getChain(this._lastMiningRoot);
+            let newChain = this.getChain(prevHash);
+
+            // These are "Removed" blocks. All transactions in them should be added to the tx pool
+            let removedBlocks = oldChain.filter((b, i)=>!newChain.includes(b));
+            removedBlocks.forEach(h=>{
+                let b = this.getBlock(h);
+                b.transactions.forEach(t=>{
+                    // Add them to txPool
+                    // NOTE: This can cause really really old transactions to reenter the pool. :shrug:
+                    this._txPool[t.txId] = t;
+
+                    // Remove from recently confirmed pool:
+                    delete this._recentConfirmedTx[t.txId];
+                });
+            });
+
+            // These are "Added" blocks. All transactions in them should be removed from the tx pool
+            let addedBlocks = newChain.filter((b, i)=>!oldChain.includes(b));
+            addedBlocks.forEach(h=>{
+                let b = this.getBlock(h);
+                b.transactions.forEach(t=>{
+                    // Add them to recently confirmed pool, but only if they are "recent":
+                    if (
+                        (t.timestamp < Date.now()) &&
+                        ((Date.now() - t.timestamp) < 10*60*1000)
+                    ) {
+                        this._recentConfirmedTx[t.txId] = t;
+                    }
+
+                    // Remove from txPool:
+                    delete this._txPool[t.txId];
+                });
+            });
+
+            // Save our "last mining block" for next time!
+            this._lastMiningRoot = prevHash;
+        }
 
         // Get the info for the previous block that we're going to build upon.
         // NOTE: This might be null!
