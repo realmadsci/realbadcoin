@@ -72,6 +72,15 @@ export class RealBadInvalidBlock {
     };
 }
 
+export class RealBadFutureBlock extends RealBadInvalidBlock {
+    blockTimestamp : Date;
+
+    constructor(message, blockHash, blockTimestamp) {
+        super(message, blockHash);
+        this.blockTimestamp = new Date(blockTimestamp);
+    }
+}
+
 // This represents the state of the ledger at any given point
 export class RealBadLedgerState {
     accounts = {};  // List of "accountId:RealBadAccountState" pairs.
@@ -124,7 +133,10 @@ export class RealBadLedgerState {
         r.lastBlockTimestamp = new Date(lastBlockTimestamp);
         r.totalDifficulty = BigInt(totalDifficulty);
         r.errors = errors.map(e=>{
-            if ("blockHash" in e) {
+            if("blockTimestamp" in e) {
+                return new RealBadFutureBlock(e.message, e.blockHash, e.blockTimestamp);
+            }
+            else if ("blockHash" in e) {
                 return new RealBadInvalidBlock(e.message, e.blockHash);
             }
             else {
@@ -238,7 +250,7 @@ export class RealBadLedgerState {
         // First just check if the new block fits as the next block in the block chain
         if (block.prevHash !== this.lastBlockHash) s.errors.push(new RealBadInvalidBlock("Block does not point at this state's prevHash", block.hash));
         if (block.blockHeight !== this.lastBlockHeight + 1) s.errors.push(new RealBadInvalidBlock("Block height is not lastBlockHeight + 1", block.hash));
-        if (block.timestamp > Date.now() + 5*1000) s.errors.push(new RealBadInvalidBlock("Block timestamp is from the future!", block.hash));
+        if (block.timestamp > new Date(Date.now() + 5*1000)) s.errors.push(new RealBadFutureBlock("Block timestamp is from the future!", block.hash, block.timestamp));
         if ((block.blockHeight !== 0) && (block.timestamp < this.lastBlockTimestamp)) s.errors.push(new RealBadInvalidBlock("Block timestamp is not greater than last block's timestamp", block.hash));
 
         s.lastBlockHash = block.hash;
@@ -326,6 +338,27 @@ export class RealBadCache {
 
                 // Check if this block is a genesis block or is linked to a block with a valid already-computed state
                 if ((block.blockHeight === 0) || ((block.prevHash in this._blocks) && ("state" in this._blocks[block.prevHash]))) {
+                    // Special check for anachronistic blocks.
+                    // If this block has any parents that were "from the future" at the time but are now OK, we want
+                    // to re-visit them and update their state before processing this block.
+                    // This is because we want to accept blocks that are out of sync _if everybody else does_, because that means
+                    // that _we_ are the ones with the bad clock. :shrug:
+                    if (block.blockHeight !== 0) {
+                        const parentErrors = this.getState(block.prevHash).errors;
+                        for(let e of parentErrors) {
+                            // If the block is OK now, then dump it and all of its children into the "ready" queue to get reevaluated
+                            if (e instanceof RealBadFutureBlock) {
+                                if (e.blockTimestamp <= new Date(Date.now() + 5*1000)) {
+                                    // Dump this block and all its children into the hash
+                                    this._readyBlocks = [e.blockHash].concat(this.getChain(block.prevHash, e.blockHash));
+
+                                    // Note: Quit once we find the first (aka OLDEST) one, since we're going to refresh all the children as well.
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
                     this._readyBlocks.push(hash);
                 }
                 else {
@@ -341,7 +374,7 @@ export class RealBadCache {
                 // Note that updating them might add new ones to the ready list by pulling them from _anticipatedBlocks.
                 // We update those too until we run out.
                 while (this._readyBlocks.length) {
-                    let b = this.getBlock(this._readyBlocks.pop());
+                    let b = this.getBlock(this._readyBlocks.shift());
                     let h = b.hash;
 
                     if (b.blockHeight === 0) {
