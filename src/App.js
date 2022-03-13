@@ -57,9 +57,10 @@ class App extends React.Component {
 
     // Restore the checkpoint if we have one
     const checkpoint = JSON.parse(sessionStorage.getItem("checkpoint"));
+    const useCheckpoint = sessionStorage.getItem("use_checkpoint"); // TODO: Make a checkbox for this to use for mobile devices???
     const block = checkpoint?.block;
     const state = checkpoint?.state;
-    if (block && state) {
+    if (useCheckpoint && block && state) {
       await this._cacheworker.restoreCheckpoint(block, state);
     }
   }
@@ -88,6 +89,7 @@ class App extends React.Component {
     if ("newBlock" in d) {
       // Whenever we see a new block arrival, see if we can add it to the cache:
       let block = RealBadBlock.coerce(d.newBlock);
+      console.error("Got block " + block.blockHeight + " from " + peer);
       if (await this._cacheworker.addBlock(block, peer, false)) {
 
         // If the new block was good but still needs a parent, then send a request to try to fetch it's parent:

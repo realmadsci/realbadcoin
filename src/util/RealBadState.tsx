@@ -301,6 +301,8 @@ export class RealBadLedgerState {
         // Clear out transaction fees now that they are claimed
         s.transactionFees = 0;
 
+        if (s.errors.length) console.error("Errors in block " + block.blockHeight + ": " + JSON.stringify(s.errors));
+
         return s;
     }
 }
