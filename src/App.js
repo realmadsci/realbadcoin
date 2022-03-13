@@ -202,7 +202,7 @@ class App extends React.Component {
     let reward = 100;
     const isChrome = window.chrome ? true : false;
     const cycleTarget = isChrome ? 8 : 1; // Chrome has to cycle WAY more slowly or its GC will die...
-    const gapTime = isChrome ? 400 : 50;
+    const gapTime = isChrome ? 800 : 100;
     let sealAttempts = isChrome ? 8e5 : 2e5; // How many attempts to make per sealing loop
     while (true) {
       // The Chrome-based systems will starve the garbage collector and run out of memory if we don't take a pause...
