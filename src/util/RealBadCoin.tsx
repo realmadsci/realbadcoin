@@ -271,13 +271,21 @@ export class RealBadBlock {
     difficulty = 256**2;        // Required difficulty for hash. Increasing this makes it harder to find a valid hash. For example, setting this to 256**N will require the top N bytes of the hash to be zeros.
     nonce = 0;                  // Number that can be changed to cause block's hash to vary
 
+    #raw_hash() {
+        // Remove the nonce and compute the hash of everything else:
+        const {nonce, ...self_minus_nonce} = {...this};
+        return bytesToHex(sha256(JSON.stringify(self_minus_nonce)));
+    }
+
     // Compute the hash of this object
     // NOTE: We don't STORE the hash of the object inside the object because this
     //       isn't a signed object so we can't trust the validity of any hash that
     //       is TOLD to us! We have to check it ourselves!
     get hash() {
-        let block_val = JSON.stringify(this);
-        return bytesToHex(sha256(block_val));
+        const raw_hash = this.#raw_hash();
+
+        // Now concat the raw hash with the nonce and hash _that_ to get the final hash:
+        return bytesToHex(sha256(raw_hash + this.nonce.toString()));
     }
 
     static difficultyMetric(h) {
@@ -302,8 +310,12 @@ export class RealBadBlock {
         // If the timestamp already has a value, don't let it go BACKWARD
         this.timestamp = new Date(Math.max(this.timestamp ?? Date.now(), Date.now()));
 
+        // Compute the raw hash (without the nonce) just one time!
+        const raw_hash = this.#raw_hash();
+
         for (let i = 0; i < num_attempts; i++) {
-            let hash = this.hash;
+            // Now concat the raw hash with the nonce and hash _that_ to get the final hash:
+            const hash = bytesToHex(sha256(raw_hash + this.nonce.toString()));
             let hashAsInt = hexToBigint(hash);
             if (hashAsInt < maxHash) {
                 return this.isSealed(this.difficulty);

@@ -25,6 +25,10 @@ import {
 const MineWorker = Comlink.wrap(new Worker(new URL("./util/MineWorker.js", import.meta.url)));
 const CacheWorker = Comlink.wrap(new Worker(new URL("./util/CacheWorker.js", import.meta.url)));
 
+function async_sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 class App extends React.Component {
   constructor(props) {
     super(props);
@@ -196,8 +200,14 @@ class App extends React.Component {
   async miningLoop(destination) {
     let worker = null;
     let reward = 100;
-    let sealAttempts = 4e5; // How many attempts to make per sealing loop
+    const isChrome = window.chrome ? true : false;
+    const cycleTarget = isChrome ? 8 : 1; // Chrome has to cycle WAY more slowly or its GC will die...
+    const gapTime = isChrome ? 400 : 50;
+    let sealAttempts = isChrome ? 8e5 : 2e5; // How many attempts to make per sealing loop
     while (true) {
+      // The Chrome-based systems will starve the garbage collector and run out of memory if we don't take a pause...
+      await async_sleep(gapTime);
+
       // Get a new mineable block from the cache, which will include up-to-date list of transactions, etc.
       let unsealed = await this._cacheworker.makeMineableBlock(reward, destination);
       unsealed.nonce = Math.round(Math.random() * 2**32);
@@ -214,7 +224,7 @@ class App extends React.Component {
         // Adjust the mining length to try and hit a target time per loop
         let after = Date.now();
         let delta = after - before;
-        let errorRatio = delta / (8 * 1000); // Aiming for 8 seconds per cycle. Would try for less, but Brave keeps crashing with "sbox out of memory" or something...
+        let errorRatio = delta / (cycleTarget * 1000); // Aiming for 1 second per cycle to give fast confirmation times. Chrome browsers need more or they keep crashing with "sbox out of memory" or something...
         // Exponential moving average (EMA) approximation
         // NOTE: We clamp the error ratio between 0 and 2 so that even if we get EXTREMELY long gaps we
         // don't adjust more than 1/N in either direction!
