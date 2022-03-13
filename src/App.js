@@ -25,10 +25,6 @@ import {
 const MineWorker = Comlink.wrap(new Worker(new URL("./util/MineWorker.js", import.meta.url)));
 const CacheWorker = Comlink.wrap(new Worker(new URL("./util/CacheWorker.js", import.meta.url)));
 
-function async_sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 class App extends React.Component {
   constructor(props) {
     super(props);
@@ -47,8 +43,6 @@ class App extends React.Component {
     this._conn = new ConnectionManager();
     this._conn.subscribeData((p, d)=>{this.handlePeerData(p,d)});
     this._conn.subscribeNewPeer((p)=>{this.handleNewPeer(p);});
-
-    this._mineworker = null;
 
     // Start the async initialization process
     this._initialized = this._initialize();
@@ -200,25 +194,16 @@ class App extends React.Component {
   async miningLoop(destination) {
     let worker = null;
     let reward = 100;
-    const isChrome = false;//window.chrome ? true : false;
-    const cycleTarget = isChrome ? 8 : 1; // Chrome has to cycle WAY more slowly or its GC will die...
-    const gapTime = isChrome ? 800 : 100;
-    let sealAttempts = isChrome ? 8e5 : 2e5; // How many attempts to make per sealing loop
+    const cycleTarget = 1; // How long to make each sealing attempt
+    let sealAttempts = 2e5; // How many attempts to make per sealing loop
     while (true) {
-      // The Chrome-based systems will starve the garbage collector and run out of memory if we don't take a pause...
-      await async_sleep(gapTime);
-
       // Get a new mineable block from the cache, which will include up-to-date list of transactions, etc.
       let unsealed = await this._cacheworker.makeMineableBlock(reward, destination);
       unsealed.nonce = Math.round(Math.random() * 2**32);
       console.log("Set up to mine block: " + JSON.stringify(unsealed));
 
-      // The block has changed, so update the worker.
-      // Note: We just "abandon" old workers and they will get garbage collected.
-      worker = await new MineWorker(unsealed);
-
       let before = Date.now();
-      let b = await worker.tryToSeal(sealAttempts);
+      let b = await MineWorker.tryToSeal(unsealed, sealAttempts);
       if (b === null) {
         // Didn't get one.
         // Adjust the mining length to try and hit a target time per loop
@@ -246,7 +231,12 @@ class App extends React.Component {
   componentDidMount() {
     // Grab the keys sometime in the future and stash them:
     this._initialized.then(()=>{
-      this.miningLoop(this.state.pubKeyHex);
+      // Sleep a little while to let the page finish loading and then start the mining loop
+      setTimeout(()=>{
+        this.miningLoop(this.state.pubKeyHex)
+        },
+        2000
+      );
     });
   }
 

@@ -6,21 +6,18 @@ import {
     RealBadBlock
 } from './RealBadCoin.tsx';
 
+function async_sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
-class MineWorker {
-    constructor(block) {
-        this._block = RealBadBlock.coerce(block);
-    }
-
-    get nonce() {
-        return this._block.nonce;
-    }
-
-    tryToSeal(num_attempts) {
-        if (this._block.tryToSeal(num_attempts)) {
-            return this._block;
-        }
-        else return null;
+const MineWorker = {
+    async tryToSeal(block, num_attempts) {
+        const b = RealBadBlock.coerce(block);
+        // The Chrome-based systems will starve the garbage collector and run out of memory if we don't take a pause...
+        // So far it's only Chrome and Brave, and not Edge???
+        await async_sleep(10);
+        const success = b.tryToSeal(num_attempts);
+        return success ? b : null;
     }
 }
 
