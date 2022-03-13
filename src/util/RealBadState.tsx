@@ -169,7 +169,10 @@ export class RealBadLedgerState {
     // Try and apply a transaction to the current state
     // Raises exception and doesn't change the state if it creates an unpermissible condition
     // Assumes that you've already checked that the transaction is VALID!
-    tryTransaction(t) {
+    tryTransaction(t, ignoreBlockTimestamp : boolean = false) {
+        // Don't allow transactions to have a timestamp AFTER the block timestamp:
+        if (!ignoreBlockTimestamp && (t.timestamp > this.lastBlockTimestamp)) throw new RealBadInvalidTransaction("Transaction timestamp is newer than block timestamp!", t, this.lastBlockHash);
+
         if (t.txData instanceof RealBadCoinTransfer) {
             if (!(t.source in this.accounts)) throw new RealBadInvalidTransaction("Account tried to send coins before it existed", t, this.lastBlockHash);
             if (t.sourceNonce !== this.accounts[t.source].nonce + 1) throw new RealBadInvalidTransaction("Incorrect nonce", t, this.lastBlockHash);
@@ -488,8 +491,12 @@ export class RealBadCache {
                 && await tx.isValid()
 
                 // Make sure it's timestamp isn't (too far) in the future or too far in the past
-                && (tx.timestamp < Date.now() + 5*1000)
-                && (Date.now() - tx.timestamp < 10*60*1000) // We only keep them for 10 minutes
+                // NOTE: We will only APPLY transactions if they are in the past and
+                // less than 5 minutes old, according to our clock, but we'll put it in the memory pool
+                // even if it is up to 5 minute into the future! This is in case our clock is slower than
+                // the rest of the network but we still want to service transactions.
+                && (tx.timestamp < new Date(Date.now() + 5*60*1000))
+                && (Date.now() - tx.timestamp < 5*60*1000) // We only keep them for 5 minutes
 
                 // Also quit early if we already have this one!
                 && !(tx.txId in this._txPool)
@@ -539,8 +546,8 @@ export class RealBadCache {
                 b.transactions.forEach(t=>{
                     // Add them to recently confirmed pool, but only if they are "recent":
                     if (
-                        (t.timestamp < Date.now()) &&
-                        ((Date.now() - t.timestamp) < 10*60*1000)
+                        (t.timestamp < new Date(Date.now() + 5*60*1000))
+                        && (Date.now() - t.timestamp < 5*60*1000)
                     ) {
                         this._recentConfirmedTx[t.txId] = t;
                     }

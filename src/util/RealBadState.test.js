@@ -125,7 +125,7 @@ test('Transfers', async ()=>{
     expect(await t.isValid()).toBe(true);
 
     // The ledger can tell you right away that this isn't going to work!
-    expect(()=>s.tryTransaction(t)).toThrow(RealBadInvalidTransaction);
+    expect(()=>s.tryTransaction(t, true)).toThrow(RealBadInvalidTransaction);
 
     // But let's go ahead and try it anyway
     let b2 = new RealBadBlock();
@@ -150,7 +150,7 @@ test('Transfers', async ()=>{
     {
         // The transaction should be accepted this time!
         let temp = s.clone();
-        temp.tryTransaction(t);
+        temp.tryTransaction(t, true);
         expect(temp.nfts[t.txData.nftId].owner === id2);
     }
 
