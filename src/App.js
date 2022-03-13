@@ -200,7 +200,7 @@ class App extends React.Component {
   async miningLoop(destination) {
     let worker = null;
     let reward = 100;
-    const isChrome = window.chrome ? true : false;
+    const isChrome = false;//window.chrome ? true : false;
     const cycleTarget = isChrome ? 8 : 1; // Chrome has to cycle WAY more slowly or its GC will die...
     const gapTime = isChrome ? 800 : 100;
     let sealAttempts = isChrome ? 8e5 : 2e5; // How many attempts to make per sealing loop
