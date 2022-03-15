@@ -103,6 +103,10 @@ export class RealBadLedgerState {
     // Errors just keep stacking, but only one is needed to invalidate a chain!
     errors = [];
 
+    // Hashes of the children of a this block so we can produce pretty graphs later.
+    // NOTE: This property is not inherited when cloning into a child block!
+    children = [];
+
     // Can assign the genesis block difficulty in the constructor
     constructor(genesisDifficulty = 2e6) {
         this.nextBlockDifficulty = genesisDifficulty;
@@ -118,6 +122,7 @@ export class RealBadLedgerState {
         lastBlockTimestamp,
         totalDifficulty,
         errors,
+        children,
     }) {
         let r = new RealBadLedgerState();
         Object.keys(accounts).forEach(k=>{
@@ -143,6 +148,7 @@ export class RealBadLedgerState {
                 return new RealBadInvalidTransaction(e.message, e.transaction, e.lastBlockHash);
             }
         });
+        r.children = children;
         return r;
     }
 
@@ -158,10 +164,11 @@ export class RealBadLedgerState {
             lastBlockTimestamp: this.lastBlockTimestamp,
             totalDifficulty: this.totalDifficulty.toString(),
             errors: this.errors,
+            children: this.children,
         };
     }
 
-    // Return a deep copy clone of the state
+    // Return a deep-ish copy clone of the state
     clone() {
         return RealBadLedgerState.coerce(this);
     }
@@ -247,16 +254,20 @@ export class RealBadLedgerState {
     // Returns a new RealBadLedgerState with the block applied if successful. Otherwise returns null.
     // Assumes that you've already checked that the block is VALID and that you approve of the mining reward amount!
     applyBlock(block) {
+        const hash = block.hash;
         // Make a deep copy of ourselves
         let s = this.clone();
+        // Add the block as a child of "this", and make the new state have no children yet:
+        this.children.push(hash);
+        s.children = [];
 
         // First just check if the new block fits as the next block in the block chain
-        if (block.prevHash !== this.lastBlockHash) s.errors.push(new RealBadInvalidBlock("Block does not point at this state's prevHash", block.hash));
-        if (block.blockHeight !== this.lastBlockHeight + 1) s.errors.push(new RealBadInvalidBlock("Block height is not lastBlockHeight + 1", block.hash));
-        if (block.timestamp > new Date(Date.now() + 5*1000)) s.errors.push(new RealBadFutureBlock("Block timestamp is from the future!", block.hash, block.timestamp));
-        if ((block.blockHeight !== 0) && (block.timestamp < this.lastBlockTimestamp)) s.errors.push(new RealBadInvalidBlock("Block timestamp is not greater than last block's timestamp", block.hash));
+        if (block.prevHash !== this.lastBlockHash) s.errors.push(new RealBadInvalidBlock("Block does not point at this state's prevHash", hash));
+        if (block.blockHeight !== this.lastBlockHeight + 1) s.errors.push(new RealBadInvalidBlock("Block height is not lastBlockHeight + 1", hash));
+        if (block.timestamp > new Date(Date.now() + 5*1000)) s.errors.push(new RealBadFutureBlock("Block timestamp is from the future!", hash, block.timestamp));
+        if ((block.blockHeight !== 0) && (block.timestamp < this.lastBlockTimestamp)) s.errors.push(new RealBadInvalidBlock("Block timestamp is not greater than last block's timestamp", hash));
 
-        s.lastBlockHash = block.hash;
+        s.lastBlockHash = hash;
         s.lastBlockHeight = block.blockHeight;
         let blockTimeDelta = (block.blockHeight === 0) ? 0 : Math.max(0, block.timestamp - this.lastBlockTimestamp);
         s.lastBlockTimestamp = block.timestamp;
@@ -267,7 +278,7 @@ export class RealBadLedgerState {
         s.totalDifficulty = this.totalDifficulty + RealBadBlock.difficultyMetric(s.lastBlockHash);
 
         // Check if they tried hard enough
-        if (block.difficulty < this.nextBlockDifficulty) s.errors.push(new RealBadInvalidBlock("Block's target difficulty is too low", block.hash));
+        if (block.difficulty < this.nextBlockDifficulty) s.errors.push(new RealBadInvalidBlock("Block's target difficulty is too low", hash));
 
         // Re-target the difficulty based on how long this last block took to harvest
         // This uses a long-running "leaky integrator" IIR filter to low-pass filter the block gaps

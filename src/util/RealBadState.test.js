@@ -378,7 +378,6 @@ test('Insert all blocks backwards still processes correctly', async ()=>{
     let l = [];
 
     // Build chain of 9 "easy" blocks.
-    // Have to stop at 9 to prevent getting snagged by the difficulty retargetting!
     let prevHash = "00".repeat(32)
     let prevHeight = -1;
     for (let i = 0; i < 9; i++) {
@@ -421,4 +420,88 @@ test('Insert all blocks backwards still processes correctly', async ()=>{
     });
 
     expect(c2.bestBlockHash).toBe(l[8].hash);
+});
+
+
+
+test('Tracking Confirmations and Reverse Child List', async ()=>{
+    const a = new AccountMock();
+    const id = await a.getPubKeyHex();
+    const reward = 100;
+    const difficulty = 256**1;
+
+    // Store all the blocks into a list so we can branch off of them later
+    let l1 = [];
+
+    // Build chain of 12 blocks.
+    let prevHash = "00".repeat(32)
+    let prevHeight = -1;
+    for (let i = 0; i < 12; i++) {
+        let b = new RealBadBlock();
+        b.difficulty = difficulty;
+        b.miningReward = reward;
+        b.rewardDestination = id;
+        b.prevHash = prevHash;
+        b.blockHeight = prevHeight + 1;
+        expect(b.tryToSeal(1e6)).toBe(true);
+        expect(b.isSealed(difficulty)).toBe(true);
+        expect(await b.isValid(difficulty)).toBe(true);
+
+        // Add it to our list
+        l1.push(b);
+
+        prevHash = b.hash;
+        prevHeight = b.blockHeight;
+    }
+
+    // Build another chain branching off of the third other one...
+    let l2 = [];
+    prevHash = l1[2].hash;
+    prevHeight = l1[2].blockHeight;
+    for (let i = 0; i < 4; i++) {
+        let b = new RealBadBlock();
+        b.difficulty = difficulty;
+        b.miningReward = reward;
+        b.rewardDestination = id;
+        b.prevHash = prevHash;
+        b.blockHeight = prevHeight + 1;
+        expect(b.tryToSeal(1e6)).toBe(true);
+        expect(b.isSealed(difficulty)).toBe(true);
+        expect(await b.isValid(difficulty)).toBe(true);
+
+        // Add it to our list
+        l2.push(b);
+
+        prevHash = b.hash;
+        prevHeight = b.blockHeight;
+    }
+
+    // Dump the lists into the cache in a slightly strange order
+    let c = new RealBadCache();
+    c.genesisDifficulty = 0; // Just ignore difficulty target!
+    await asyncForEach(l2.concat(l1), async b=>{
+        await c.addBlock(b, null, difficulty);
+    });
+    // The longer chain should "win"
+    expect(c.bestBlockHash).toBe(l1[11].hash);
+
+    // The "children" properties should be a "reverse linked list":
+    for (let i = 0; i < 3; i++) {
+        expect(c.getState(l2[i].hash).children).toStrictEqual([l2[i+1].hash]);
+    }
+    expect(c.getState(l2[3].hash).children).toStrictEqual([]);
+
+    for (let i = 0; i < 11; i++) {
+        if (i === 2) {
+            expect(c.getState(l1[i].hash).children).toStrictEqual([
+                l2[0].hash,
+                l1[i+1].hash,
+            ]);
+        }
+        else {
+            expect(c.getState(l1[i].hash).children).toStrictEqual([l1[i+1].hash]);
+        }
+    }
+    expect(c.getState(l1[11].hash).children).toStrictEqual([]);
+
 });
