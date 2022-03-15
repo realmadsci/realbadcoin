@@ -29,7 +29,7 @@ class TreeView extends React.Component {
         const sel = this.props.selected;
 
         // Walk up to N parents above me!
-        const parentChain = await this.props.cache.getChain(sel, null, 2);
+        const parentChain = await this.props.cache.getChain(sel, null, 4);
 
         // If there _is_ no chain returned, then this block is invalid!
         if (parentChain.length === 0) {
