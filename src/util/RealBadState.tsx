@@ -474,12 +474,12 @@ export class RealBadCache {
     // Stops when it runs out of previous blocks (or hits a genesis block).
     // Also stops early when it hits rootHash if that is part of the chain.
     // If `hash` is null-ish, then it will assume you want the top of the "best chain".
-    getChain(hash, rootHash=null) {
+    getChain(hash, rootHash=null, maxLength=Infinity) {
         let chain = [];
         let currHash = hash ?? this.bestBlockHash;
         let currBlock = this.getBlock(currHash);
 
-        while ((currHash !== rootHash) && (currBlock !== null)) {
+        while ((currHash !== rootHash) && (currBlock !== null) && (chain.length < maxLength)) {
             chain.unshift(currHash);
 
             // Stop when we hit genesis block
@@ -490,6 +490,19 @@ export class RealBadCache {
         }
 
         return chain;
+    }
+
+    // Because "confirmations" really applies to the _transactions_ more than the blocks themselves, the number of
+    // confirmations of a block is the number of blocks (including itself) after it *in the best chain*.
+    // If a block isn't in the best chain, its confirmations are 0! If a block is the head of the main chain, it's confirmations are 1.
+    getConfirmations(hash) {
+        // Need a special case for the exact top block, since it will return a 0-length chain.
+        if (hash === this.bestBlockHash) return 1;
+
+        const chain = this.getChain(null, hash);
+        const chainParent = this.getBlock(chain[0])?.prevHash;
+        if (chain.length && (chainParent === hash)) return 1 + chain.length;
+        else return 0;
     }
 
     // Validate and possibly add a transaction into the memory pool.

@@ -55,8 +55,14 @@ class CacheWorker {
     // Get the list of hashes comprising the chain, starting at `hash` and going
     // backward until `rootHash` is found (or a genesis block, or a block with no parent).
     // If topHash is null or undefined, then we start at the "best" hash.
-    getChain(hash, rootHash) {
-        return this.#cache.getChain(hash, rootHash);
+    getChain(hash, rootHash=null, maxLength=Infinity) {
+        return this.#cache.getChain(hash, rootHash, maxLength);
+    }
+
+    // Get the number of "confirmations" for a particular block (i.e. how many blocks, including itself,
+    // are on the main chain after it).
+    getConfirmations(hash) {
+        return this.#cache.getConfirmations(hash);
     }
 
     // Return the hash of the top of the "best chain" that we know about

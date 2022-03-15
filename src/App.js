@@ -36,6 +36,8 @@ class App extends React.Component {
       topHash: null,
       topBlock: null,
       topLState: null,
+      cache: null,
+      newBlockCounter: 0,
     };
 
     this._id = new AccountIdentity();
@@ -46,9 +48,8 @@ class App extends React.Component {
   }
 
   async _initialize() {
-    this._cacheworker = await new CacheWorker();
-
     this.setState({
+      cache: await new CacheWorker(),
       privKeyHex: await this._id.getPrivKeyHex(),
       pubKeyHex: await this._id.getPubKeyHex(),
     });
@@ -59,17 +60,18 @@ class App extends React.Component {
     const block = checkpoint?.block;
     const state = checkpoint?.state;
     if (useCheckpoint && block && state) {
-      await this._cacheworker.restoreCheckpoint(block, state);
+      await this.state.cache.restoreCheckpoint(block, state);
     }
   }
 
   async handleNewPeer(peer) {
+    await this._initialized;
+
     // Whenever we get connected to a new peer, ask for all the blocks they know about!
     console.error("Pestering peer \"" + peer + "\" with requestBlocks");
-    const bestHash = await this._cacheworker.bestBlockHash;
     this._conn.sendToPeer(peer, JSON.stringify({
       requestBlocks: {
-        have: bestHash,
+        have: this.state.topHash,
         want: null, // Null means "give me your best chain"
       }
     }));
@@ -84,21 +86,23 @@ class App extends React.Component {
   }
 
   async handlePeerData(peer, data) {
+    await this._initialized;
+
     let d = JSON.parse(data);
     if ("newBlock" in d) {
       // Whenever we see a new block arrival, see if we can add it to the cache:
       let block = RealBadBlock.coerce(d.newBlock);
       console.error("Got block " + block.blockHeight + " from " + peer);
-      if (await this._cacheworker.addBlock(block, peer, false)) {
+      if (await this.state.cache.addBlock(block, peer, false)) {
 
         // If the new block was good but still needs a parent, then send a request to try to fetch it's parent:
         let hash = block.hash;
-        let oldestParent = (await this._cacheworker.getBlockInfo((await this._cacheworker.getChain(hash))[0])).block;
+        let oldestParent = (await this.state.cache.getBlockInfo((await this.state.cache.getChain(hash))[0])).block;
         if (oldestParent.blockHeight !== 0) {
           console.error("Requesting gap-filler blocks from peer \"" + peer + "\"");
           this._conn.sendToPeer(peer, JSON.stringify({
             requestBlocks: {
-              have: await this._cacheworker.bestBlockHash,
+              have: await this.state.topHash, // NOTE: This might be null or not part of the requested chain, but that's OK
               want: oldestParent.prevHash,
             }
           }));
@@ -124,7 +128,7 @@ class App extends React.Component {
       // Dump only 100 at a time, so we can keep updating the UI
       for (let i = 0; i < d.blockList.length; i += 100) {
         console.log("Feeding " + i.toString() + " to " + (i + 100).toString() + " into cacheworker");
-        if (await this._cacheworker.addBlocks(d.blockList.slice(i, Math.min(i+100, d.blockList.length)))) {
+        if (await this.state.cache.addBlocks(d.blockList.slice(i, Math.min(i+100, d.blockList.length)))) {
           // We added a new block to the cache, so update our UI!
           await this.cacheHasNewBlock();
         }
@@ -133,10 +137,10 @@ class App extends React.Component {
 
     // Somebody wants to know what we know
     if ("requestBlocks" in d) {
-      let resultChain = await this._cacheworker.getChain(d.requestBlocks?.want, d.requestBlocks?.have);
+      let resultChain = await this.state.cache.getChain(d.requestBlocks?.want, d.requestBlocks?.have);
 
       // Get the blocks and send them
-      let blocks = await this._cacheworker.getBlocks(resultChain);
+      let blocks = await this.state.cache.getBlocks(resultChain);
       this._conn.sendToPeer(peer, JSON.stringify({
         blockList: blocks,
       }));
@@ -147,7 +151,7 @@ class App extends React.Component {
       // Try to add it to the tx pool.
       // If it's any good, then ship it to all our friends as well!
       //console.log("Got new transaction from " + peer + ": " + JSON.stringify(d.newTx));
-      if (await this._cacheworker.addTransaction(d.newTx)) {
+      if (await this.state.cache.addTransaction(d.newTx)) {
         this._conn.broadcast(
           JSON.stringify({
             newTx: d.newTx, // Note: Extracting just the one Tx in case someone sends us a multiple-message?
@@ -161,20 +165,17 @@ class App extends React.Component {
   // Set this up as a callback from the cache when
   // it gets any new blocks
   async cacheHasNewBlock(hash=undefined, wasRequested=undefined) {
-    let topHash = await this._cacheworker.bestBlockHash;
+    let topHash = await this.state.cache.bestBlockHash;
     if (topHash !== null) {
-      let bi = await this._cacheworker.getBlockInfo(topHash);
+      let bi = await this.state.cache.getBlockInfo(topHash);
       //console.log("Best block is " + topHash + " at height " + bi.block.blockHeight);
 
       // Get the block 100 blocks above this "best" block and use it as a checkpoint
-      const checkpoint = JSON.parse(sessionStorage.getItem("checkpoint"));
-      const checkpointHash = checkpoint?.hash;
-      const chain = await this._cacheworker.getChain(topHash, checkpoint?.parentHash);
+      const chain = await this.state.cache.getChain(topHash, null, 100);
       // If the checkpoint hash has changed, then update it in storage
-      const checkIndex = Math.max(0, chain.length - 1 - 100);
-      if (chain[checkIndex] !== checkpointHash) {
-        const checkpointHash = chain[checkIndex];
-        const checkpointInfo = await this._cacheworker.getBlockInfo(checkpointHash);
+      const checkpointHash = chain[0];
+      const checkpointInfo = await this.state.cache.getBlockInfo(checkpointHash);
+      if (checkpointInfo) {
         sessionStorage.setItem("checkpoint", JSON.stringify({
           block: RealBadBlock.coerce(checkpointInfo.block),
           state: RealBadLedgerState.coerce(checkpointInfo.state),
@@ -190,6 +191,10 @@ class App extends React.Component {
         topLState: bi.state,
       });
     }
+    // Click the newBlockCounter, which triggers anything that is looking for "new blocks" to update:
+    this.setState(prevState => ({
+      newBlockCounter: prevState.newBlockCounter+1,
+    }));
   }
 
   async miningLoop(destination) {
@@ -199,7 +204,7 @@ class App extends React.Component {
     let sealAttempts = 2e5; // How many attempts to make per sealing loop
     while (true) {
       // Get a new mineable block from the cache, which will include up-to-date list of transactions, etc.
-      let unsealed = await this._cacheworker.makeMineableBlock(reward, destination);
+      let unsealed = await this.state.cache.makeMineableBlock(reward, destination);
       unsealed.nonce = Math.round(Math.random() * 2**32);
       console.log("Set up to mine block: " + JSON.stringify(unsealed));
 
@@ -222,7 +227,8 @@ class App extends React.Component {
       else {
         // We got one!
         // Pretend like we sent it to ourselves, so it will get cached and broadcasted.
-        this.handlePeerData(this._conn.myId, JSON.stringify({
+        // NOTE: We "await" it here though, so that the block cache gets updated before we try to mine again!
+        await this.handlePeerData(this._conn.myId, JSON.stringify({
           newBlock: b,
         }));
       }
