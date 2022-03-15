@@ -66,9 +66,10 @@ class App extends React.Component {
   async handleNewPeer(peer) {
     // Whenever we get connected to a new peer, ask for all the blocks they know about!
     console.error("Pestering peer \"" + peer + "\" with requestBlocks");
+    const bestHash = await this._cacheworker.bestBlockHash;
     this._conn.sendToPeer(peer, JSON.stringify({
       requestBlocks: {
-        have: await this._cacheworker.bestBlockHash,
+        have: bestHash,
         want: null, // Null means "give me your best chain"
       }
     }));

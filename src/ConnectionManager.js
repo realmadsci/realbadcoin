@@ -151,7 +151,7 @@ export class ConnectionManager {
 
         // Cap the incoming connection count
         let good_connections = Object.keys(this.peers).filter((p, i)=>(this.peers[p].state === "connected"));
-        if (good_connections.length >= 5) {
+        if (good_connections.length >= 10) {
             console.error("Already have too many connections, not accepting any more incoming!")
             conn.close();
             return;
