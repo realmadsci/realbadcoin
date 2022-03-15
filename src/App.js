@@ -9,6 +9,7 @@ import {
 } from './AccountView.js';
 import { ConnectionManager, PeerApp } from './ConnectionManager';
 import BlockView from './BlockView';
+import TreeView from './TreeView';
 import CoinTransfer from './CoinTransfer';
 
 // For the MineWorker:
@@ -273,6 +274,9 @@ class App extends React.Component {
         </Paper>
         <Paper elevation={8}>
           <BlockView hash={this.state.topHash} block={this.state.topBlock} lstate={this.state.topLState} />
+        </Paper>
+        <Paper elevation={8}>
+          <TreeView selected={this.state.topHash} cache={this.state.cache} newBlockCounter={this.state.newBlockCounter} />
         </Paper>
       </Box>
     );

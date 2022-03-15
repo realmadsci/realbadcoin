@@ -257,9 +257,12 @@ export class RealBadLedgerState {
         const hash = block.hash;
         // Make a deep copy of ourselves
         let s = this.clone();
-        // Add the block as a child of "this", and make the new state have no children yet:
-        this.children.push(hash);
-        s.children = [];
+        s.children = []; // Brand new state doesn't have children
+
+        // Add the block as a child of "this".
+        // NOTE: When a block that was from the future gets "reconsidered" it can cause this function
+        // to get called multiple times with the same block, so we DO have to check for uniqueness when inserting children!
+        if (!this.children.includes(hash)) this.children.push(hash);
 
         // First just check if the new block fits as the next block in the block chain
         if (block.prevHash !== this.lastBlockHash) s.errors.push(new RealBadInvalidBlock("Block does not point at this state's prevHash", hash));
