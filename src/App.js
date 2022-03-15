@@ -43,15 +43,15 @@ class App extends React.Component {
     this._conn = new ConnectionManager();
     this._conn.subscribeData((p, d)=>{this.handlePeerData(p,d)});
     this._conn.subscribeNewPeer((p)=>{this.handleNewPeer(p);});
-
-    // Start the async initialization process
-    this._initialized = this._initialize();
   }
 
   async _initialize() {
-    this.state.privKeyHex = await this._id.getPrivKeyHex();
-    this.state.pubKeyHex = await this._id.getPubKeyHex();
     this._cacheworker = await new CacheWorker();
+
+    this.setState({
+      privKeyHex: await this._id.getPrivKeyHex(),
+      pubKeyHex: await this._id.getPubKeyHex(),
+    });
 
     // Restore the checkpoint if we have one
     const checkpoint = JSON.parse(sessionStorage.getItem("checkpoint"));
@@ -229,7 +229,10 @@ class App extends React.Component {
   }
 
   componentDidMount() {
-    // Grab the keys sometime in the future and stash them:
+    // Start the async initialization process
+    this._initialized = this._initialize();
+
+    // After the initialization is complete, start the mining loop
     this._initialized.then(()=>{
       // Sleep a little while to let the page finish loading and then start the mining loop
       setTimeout(()=>{

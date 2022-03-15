@@ -70,8 +70,8 @@ export class AccountIdentity {
 }
 
 export class AccountView extends React.Component {
-    constructor() {
-        super();
+    constructor(props) {
+        super(props);
 
         this.state = {
             showPrivKey: false,
