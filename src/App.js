@@ -64,6 +64,7 @@ class App extends React.Component {
     const state = checkpoint?.state;
     if (useCheckpoint && block && state) {
       await this.state.cache.restoreCheckpoint(block, state);
+      await this.cacheHasNewBlock();
     }
   }
 
@@ -131,10 +132,12 @@ class App extends React.Component {
         let hash = block.hash;
         let oldestParent = (await this.state.cache.getBlockInfo((await this.state.cache.getChain(hash))[0])).block;
         if (oldestParent.blockHeight !== 0) {
+          let bestHash = await this.state.cache.bestBlockHash;
+          let bestBlockRoot = (await this.state.cache.getBlockInfo((await this.state.cache.getChain(bestHash))[0]))?.block;
           console.error("Requesting gap-filler blocks from peer \"" + peer + "\"");
           this._conn.sendToPeer(peer, JSON.stringify({
             requestBlocks: {
-              have: await this.state.cache.bestBlockHash, // NOTE: This might be null or not part of the requested chain, but that's OK
+              have: (bestBlockRoot?.blockHeight === 0) ? bestHash : null, // Only send our "best hash" if we have a full chain already (i.e. we aren't branched from a checkpoint).
               want: oldestParent.prevHash,
             }
           }));
@@ -162,10 +165,16 @@ class App extends React.Component {
 
     // Somebody wants to know what we know
     if ("requestBlocks" in d) {
-      let resultChain = await this.state.cache.getChain(d.requestBlocks?.want, d.requestBlocks?.have);
+      const wantChain = await this.state.cache.getChain(d.requestBlocks?.want);
+      const haveChain = await this.state.cache.getChain(d.requestBlocks?.have);
+
+      // Send them all the blocks that they don't already claim to know about
+      // NOTE: Filtering this way so we don't need to send a FULL chain even if their "have" block
+      //       is off in a side branch that is different from our own chain. Any overlap will be removed.
+      const neededChain = (!d.requestBlocks?.have) ? wantChain : wantChain.filter(b=>(!haveChain.includes(b)));
 
       // Get the blocks and send them
-      let blocks = await this.state.cache.getBlocks(resultChain);
+      let blocks = await this.state.cache.getBlocks(neededChain);
       console.log("Got requestBlocks from " + peer + ": (" + d.requestBlocks?.want + "," + d.requestBlocks?.have + "), sending " + blocks.length + " blocks to them.");
       this._conn.sendToPeer(peer, JSON.stringify({
         blockList: blocks,
