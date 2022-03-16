@@ -46,6 +46,8 @@ class App extends React.Component {
     this._conn = new ConnectionManager();
     this._conn.subscribeData((p, d)=>{this.handlePeerData(p,d)});
     this._conn.subscribeNewPeer((p)=>{this.handleNewPeer(p);});
+
+    this._blockBacklog = [];
   }
 
   async _initialize() {
@@ -86,6 +88,35 @@ class App extends React.Component {
     }));
   }
 
+  async _processSomeBlocks() {
+    if (this._blockBacklog.length) {
+      const chunkLen = Math.min(1000, this._blockBacklog.length);
+      const blocks = this._blockBacklog.slice(0, chunkLen);
+      this._blockBacklog = this._blockBacklog.slice(blocks.length);
+      console.log("Feeding " + chunkLen.toString() + " more blocks into cacheworker. " + this._blockBacklog.length + " more to go.");
+      if (await this.state.cache.addBlocks(blocks)) {
+        // We added a new block to the cache, so update our UI!
+        await this.cacheHasNewBlock();
+      }
+    }
+
+    // Handle the next bunch later if there's any left:
+    if (this._blockBacklog.length) {
+      this._processTimer = setTimeout(()=>{this._processSomeBlocks()},0);
+    }
+    else {
+      this._processTimer = undefined;
+    }
+  }
+
+  _addBlocks(blocks) {
+    // NOTE: For now, we don't really care about tracking the "source" for blocks that arrive in bulk.
+    this._blockBacklog = this._blockBacklog.concat(blocks);
+    if (!this._processTimer) {
+      this._processTimer = setTimeout(()=>{this._processSomeBlocks()},0);
+    }
+  }
+
   async handlePeerData(peer, data) {
     await this._initialized;
 
@@ -103,7 +134,7 @@ class App extends React.Component {
           console.error("Requesting gap-filler blocks from peer \"" + peer + "\"");
           this._conn.sendToPeer(peer, JSON.stringify({
             requestBlocks: {
-              have: await this.state.topHash, // NOTE: This might be null or not part of the requested chain, but that's OK
+              have: await this.state.cache.bestBlockHash, // NOTE: This might be null or not part of the requested chain, but that's OK
               want: oldestParent.prevHash,
             }
           }));
@@ -126,14 +157,7 @@ class App extends React.Component {
     // Shiny new blocks that we requested have arrived!
     if ("blockList" in d) {
       console.error("Got " + d.blockList.length.toString() + " blocks from " + peer);
-      // Dump only 100 at a time, so we can keep updating the UI
-      for (let i = 0; i < d.blockList.length; i += 100) {
-        console.log("Feeding " + i.toString() + " to " + (i + 100).toString() + " into cacheworker");
-        if (await this.state.cache.addBlocks(d.blockList.slice(i, Math.min(i+100, d.blockList.length)))) {
-          // We added a new block to the cache, so update our UI!
-          await this.cacheHasNewBlock();
-        }
-      }
+      this._addBlocks(d.blockList);
     }
 
     // Somebody wants to know what we know
@@ -142,6 +166,7 @@ class App extends React.Component {
 
       // Get the blocks and send them
       let blocks = await this.state.cache.getBlocks(resultChain);
+      console.log("Got requestBlocks from " + peer + ": (" + d.requestBlocks?.want + "," + d.requestBlocks?.have + "), sending " + blocks.length + " blocks to them.");
       this._conn.sendToPeer(peer, JSON.stringify({
         blockList: blocks,
       }));
@@ -151,7 +176,7 @@ class App extends React.Component {
     if ("newTx" in d) {
       // Try to add it to the tx pool.
       // If it's any good, then ship it to all our friends as well!
-      //console.log("Got new transaction from " + peer + ": " + JSON.stringify(d.newTx));
+      console.log("Got new transaction from " + peer + ": " + JSON.stringify(d.newTx));
       if (await this.state.cache.addTransaction(d.newTx)) {
         this._conn.broadcast(
           JSON.stringify({

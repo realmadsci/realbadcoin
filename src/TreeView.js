@@ -24,37 +24,36 @@ class TreeView extends React.Component {
 
     async _updateTree() {
         if (!this.props.cache) return;
+        console.log("Tree updating");
 
         // From whatever node is selected, walk up to its parent node and then show a few layers of children
         const sel = this.props.selected;
 
         // Walk up to N parents above me!
-        const parentChain = await this.props.cache.getChain(sel, null, 4);
+        const parentChain = await this.props.cache.getChain(sel, null, 15);
 
         // If there _is_ no chain returned, then this block is invalid!
         if (parentChain.length === 0) {
             this.setState({data: {}});
             return;
         }
-        console.log("length = " + parentChain.length.toString());
         const parent = parentChain[0];
 
         // Recursively grab children and build a tree
-        const newData = await this._makeTreeFromBlock(parent, 4);
+        const newData = await this._makeTreeFromBlock(parent, 30);
         this.setState({
             data: newData,
         });
-        console.log(newData);
     }
 
     async _makeTreeFromBlock(hash, depth) {
         const bi = await this.props.cache.getBlockInfo(hash);
         return {
-            name: RealBadBlock.coerce(bi.block).hash,
+            name: RealBadBlock.coerce(bi.block).hash.slice(-8),
             attributes: {
                 height: bi.block.blockHeight,
-                confirmations: await this.props.cache.getConfirmations(hash),
-                miner: bi.block.rewardDestination,
+                confirm: await this.props.cache.getConfirmations(hash),
+                miner: bi.block.rewardDestination.slice(0,8),
             },
             children: (depth > 1) && bi.state.children.length ? await Promise.all(bi.state.children.map(async h=>this._makeTreeFromBlock(h, depth-1))) : undefined,
         }
@@ -75,6 +74,8 @@ class TreeView extends React.Component {
         return (
             <Tree
                 data={this.state.data}
+                separation={{siblings: 1, nonSiblings: 1}}
+                collapsible={false}
             />
         );
     }

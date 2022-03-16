@@ -23,7 +23,7 @@ class CacheWorker {
 
     // Validate and possibly add a list of blocks to the cache
     async addBlocks(blockList, source) {
-        let anyGood = true;
+        let anyGood = false;
         for (let b of blockList) {
             // WARNING: The order of the operands matters here, due to lazy execution!
             anyGood = await this.addBlock(b, source) || anyGood;
