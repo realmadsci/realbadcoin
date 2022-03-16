@@ -68,14 +68,29 @@ class App extends React.Component {
     }
   }
 
+  // Return {isCheckpoint, likelyHash} object.
+  async _getLikelySharedHash() {
+    let bestChain = await this.state.cache.getChain(await this.state.cache.bestBlockHash);
+    let bestBlockRoot = (await this.state.cache.getBlockInfo((bestChain)[0]))?.block;
+    // NOTE: We tell the other side that our block we "already have" is way earlier than our true "best block" in case
+    //       the other side doesn't share the same newest set of hashes with us. 40 should be _plenty_ far back, but if
+    //       we've been disconnected and making our own blocks for 10+ minutes then we'll probably end up with a full fetch,
+    //       but maybe that's a good thing???
+    return {
+      isCheckpoint: (bestBlockRoot?.blockHeight !== 0),
+      likelyHash: bestChain[Math.max(0, bestChain.length-1-40)],
+    }
+  }
+
   async handleNewPeer(peer) {
     await this._initialized;
 
     // Whenever we get connected to a new peer, ask for all the blocks they know about!
     console.error("Pestering peer \"" + peer + "\" with requestBlocks");
+    const sh = await this._getLikelySharedHash();
     this._conn.sendToPeer(peer, JSON.stringify({
       requestBlocks: {
-        have: this.state.topHash,
+        have: sh.likelyHash, // NOTE: we don't care if we are using a checkpoint here. In fact, we DEFINITELY want to just use the checkpoint hash for the first fetch!
         want: null, // Null means "give me your best chain"
       }
     }));
@@ -132,18 +147,11 @@ class App extends React.Component {
         let hash = block.hash;
         let oldestParent = (await this.state.cache.getBlockInfo((await this.state.cache.getChain(hash))[0])).block;
         if (oldestParent.blockHeight !== 0) {
-          let bestHash = await this.state.cache.bestBlockHash;
-          let bestChain = await this.state.cache.getChain(bestHash);
-          let bestBlockRoot = (await this.state.cache.getBlockInfo((bestChain)[0]))?.block;
-          // NOTE: We tell the other side that our block we "already have" is way earlier than our true "best block" in case
-          //       the other side doesn't share the same newest set of hashes with us. 40 should be _plenty_ far back, but if
-          //       we've been disconnected and making our own blocks for 10+ minutes then we'll probably end up with a full fetch,
-          //       but maybe that's a good thing???
-          let likelyToBeOnMainBlockchain = bestChain[Math.max(0, bestChain.length-1-40)];
+          const sh = await this._getLikelySharedHash();
           console.error("Requesting gap-filler blocks from peer \"" + peer + "\"");
           this._conn.sendToPeer(peer, JSON.stringify({
             requestBlocks: {
-              have: (bestBlockRoot?.blockHeight === 0) ? likelyToBeOnMainBlockchain : null, // Only send our "root hash" if we have a full chain already (i.e. we aren't branched from a checkpoint).
+              have: sh.isCheckpoint ? null : sh.likelyHash, // Only send our "root hash" if we have a full chain already (i.e. we aren't branched from a checkpoint).
               want: oldestParent.prevHash,
             }
           }));
