@@ -2,6 +2,15 @@ import * as React from 'react';
 
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
+import Tab from '@mui/material/Tab';
+import TabContext from '@mui/lab/TabContext';
+import TabList from '@mui/lab/TabList';
+import TabPanel from '@mui/lab/TabPanel';
+
+import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
+import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
+import PrecisionManufacturingRoundedIcon from '@mui/icons-material/PrecisionManufacturingRounded';
+
 
 import {
   AccountIdentity,
@@ -23,9 +32,6 @@ import {
   RealBadLedgerState
 } from './util/RealBadState.tsx';
 
-const MineWorker = Comlink.wrap(new Worker(new URL("./util/MineWorker.js", import.meta.url)));
-const CacheWorker = Comlink.wrap(new Worker(new URL("./util/CacheWorker.js", import.meta.url)));
-
 class App extends React.Component {
   constructor(props) {
     super(props);
@@ -34,6 +40,7 @@ class App extends React.Component {
     this.state = {
       privKeyHex: null,
       pubKeyHex: null,
+      activeTab: "1",
       topHash: null,
       topBlock: null,
       topLState: null,
@@ -44,15 +51,15 @@ class App extends React.Component {
     this._id = new AccountIdentity();
 
     this._conn = new ConnectionManager();
-    this._conn.subscribeData((p, d)=>{this.handlePeerData(p,d)});
-    this._conn.subscribeNewPeer((p)=>{this.handleNewPeer(p);});
+    this._peerDataCallback = this.handlePeerData.bind(this);
+    this._newPeerCallback = this.handleNewPeer.bind(this);
 
     this._blockBacklog = [];
   }
 
   async _initialize() {
     this.setState({
-      cache: await new CacheWorker(),
+      cache: await new this._CacheWorkerFactory(),
       privKeyHex: await this._id.getPrivKeyHex(),
       pubKeyHex: await this._id.getPubKeyHex(),
     });
@@ -249,10 +256,10 @@ class App extends React.Component {
       // Get a new mineable block from the cache, which will include up-to-date list of transactions, etc.
       let unsealed = await this.state.cache.makeMineableBlock(reward, destination);
       unsealed.nonce = Math.round(Math.random() * 2**32);
-      console.log("Set up to mine block: " + JSON.stringify(unsealed));
+      //console.log("Set up to mine block: " + JSON.stringify(unsealed));
 
       let before = Date.now();
-      let b = await MineWorker.tryToSeal(unsealed, sealAttempts);
+      let b = await this._MineWorker.tryToSeal(unsealed, sealAttempts);
       if (b === null) {
         // Didn't get one.
         // Adjust the mining length to try and hit a target time per loop
@@ -265,7 +272,7 @@ class App extends React.Component {
         errorRatio = Math.min(2, errorRatio);
         const N = 40; // Number of cycles of "smoothing" effect.
         sealAttempts = Math.round(sealAttempts * (1 + (1 - errorRatio) / N));
-        console.log("Mining time = " + delta.toString() + " ms, errorRatio = " + errorRatio.toString() + ", attempts = " + sealAttempts.toString());
+        //console.log("Mining time = " + delta.toString() + " ms, errorRatio = " + errorRatio.toString() + ", attempts = " + sealAttempts.toString());
       }
       else {
         // We got one!
@@ -279,6 +286,17 @@ class App extends React.Component {
   }
 
   componentDidMount() {
+    // Start up the web workers
+    this._rawMineWorker = new Worker(new URL("./util/MineWorker.js", import.meta.url));
+    this._MineWorker = Comlink.wrap(this._rawMineWorker);
+    this._rawCacheWorker = new Worker(new URL("./util/CacheWorker.js", import.meta.url));
+    this._CacheWorkerFactory = Comlink.wrap(this._rawCacheWorker);
+
+    // Connect to the server:
+    this._conn.subscribeData(this._peerDataCallback);
+    this._conn.subscribeNewPeer(this._newPeerCallback);
+    this._conn.connectToServer();
+
     // Start the async initialization process
     this._initialized = this._initialize();
 
@@ -294,33 +312,85 @@ class App extends React.Component {
   }
 
   componentWillUnmount() {
+    // Kill off the web workers
+    this._rawMineWorker.terminate();
+    this._rawCacheWorker.terminate();
+
+    // Disconnect from the server
+    this._conn.unsubscribeData(this._peerDataCallback);
+    this._conn.unsubscribeNewPeer(this._newPeerCallback);
+    this._conn.disconnectFromServer();
   }
 
   render() {
     return (
-      <Box sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        p: 1,
-        rowGap: 1,
-        minWidth: 350,
-      }}>
-        <Paper elevation={8}>
-          <AccountView pubKeyHex={this.state.pubKeyHex} privKeyHex={this.state.privKeyHex} lstate={this.state.topLState} />
-        </Paper>
-        <Paper elevation={8}>
-          <PeerApp conn={this._conn} />
-        </Paper>
-        <Paper elevation={8}>
-          <CoinTransfer id={this._id} submit={tx=>this.submitTransaction(tx)} lstate={this.state.topLState} />
-        </Paper>
-        <Paper elevation={8}>
-          <BlockView hash={this.state.topHash} block={this.state.topBlock} lstate={this.state.topLState} />
-        </Paper>
-        <Paper elevation={8} sx={{height: 400}}>
-          <TreeView selected={this.state.topHash} cache={this.state.cache} newBlockCounter={this.state.newBlockCounter} />
-        </Paper>
-      </Box>
+      <TabContext value={this.state.activeTab}>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider'}}>
+          <TabList
+            onChange={(e,nV)=>this.setState({activeTab: nV})}
+            aria-label="View"
+            centered
+          >
+            <Tab icon={<AccountBalanceWalletRoundedIcon />} label="ACCOUNT" value="1" />
+            <Tab icon={<PrecisionManufacturingRoundedIcon />} label="MINING" value="2" />
+            <Tab icon={<AccountTreeRoundedIcon />} label="BLOCKCHAIN" value="3" />
+          </TabList>
+        </Box>
+        <TabPanel value="1" sx={{p: 0}}>
+          <Box sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            p: 2,
+            rowGap: 1,
+            minWidth: 350,
+          }}>
+            <Paper elevation={8}>
+              <AccountView pubKeyHex={this.state.pubKeyHex} privKeyHex={this.state.privKeyHex} lstate={this.state.topLState} />
+            </Paper>
+            <Paper elevation={8}>
+              <CoinTransfer id={this._id} submit={tx=>this.submitTransaction(tx)} lstate={this.state.topLState} />
+            </Paper>
+          </Box>
+        </TabPanel>
+        <TabPanel value="2" sx={{p: 0}}>
+          <Box sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            p: 2,
+            rowGap: 1,
+            minWidth: 350,
+          }}>
+            <Paper elevation={8}>
+              <BlockView hash={this.state.topHash} block={this.state.topBlock} lstate={this.state.topLState} />
+            </Paper>
+          </Box>
+        </TabPanel>
+        <TabPanel value="3" sx={{p: 0}}>
+          <Box sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            p: 2,
+            rowGap: 1,
+            minWidth: 350,
+          }}>
+            <Paper elevation={8}>
+              <PeerApp conn={this._conn} />
+            </Paper>
+            <Paper elevation={8}
+              sx={{
+                height: 250,
+                // Limiting this one to 75% of view height to prevent the annoying "can't scroll past it" condition on small screens
+                maxHeight: "75vh",
+              }}
+            >
+              <TreeView selected={this.state.topHash} cache={this.state.cache} newBlockCounter={this.state.newBlockCounter} />
+            </Paper>
+            <Paper elevation={8}>
+              <BlockView hash={this.state.topHash} block={this.state.topBlock} lstate={this.state.topLState} />
+            </Paper>
+          </Box>
+        </TabPanel>
+      </TabContext>
     );
   }
 }

@@ -31,19 +31,30 @@ export class ConnectionManager {
         this.peerHistory = [];
         this.state = "disconnected";
         this._updateNotifier = new EventEmitter();
+
+        this._serverDisconnectCallback = this._handleServerDisconnect.bind(this);
     }
 
     // Add subscribe/unsub options for tracking when connection/disconnection events happen
     subscribeStatus(callback) {
         this._updateNotifier.addListener('status_change', callback);
     }
+    unsubscribeStatus(callback) {
+        this._updateNotifier.removeListener('status_change', callback);
+    }
 
     subscribeNewPeer(callback) {
         this._updateNotifier.addListener('new_peer', callback);
     }
+    unsubscribeNewPeer(callback) {
+        this._updateNotifier.removeListener('new_peer', callback);
+    }
 
     subscribeData(callback) {
         this._updateNotifier.addListener('data', callback);
+    }
+    unsubscribeData(callback) {
+        this._updateNotifier.removeListener('data', callback);
     }
 
     _notifyStatusChange(newState) {
@@ -52,11 +63,11 @@ export class ConnectionManager {
         this._updateNotifier.emit('status_change');
     }
 
-    _notifyPeerStatusChange(peer, newState) {
+    _notifyPeerStatusChange(peer, newState, remove=false) {
         if (newState !== "deleted") {
             this.peers[peer].state = newState;
         }
-        else {
+        else if (remove) {
             // If the user specifically deleted the connection, then wipe it from the restart history:
             this.peerHistory = this.peerHistory.filter((e, i) => e !== peer);
             sessionStorage.setItem("peer_history", JSON.stringify(this.peerHistory));
@@ -98,18 +109,7 @@ export class ConnectionManager {
         });
 
         // If it failed, try again in a little bit
-        this.server.on('disconnected', () => {
-            let prevState = this.state;
-            this._notifyStatusChange("disconnected");
-
-            // See if we want to try and reconect:
-            if (prevState !== "quitting") {
-                console.error("Initial connect attempt failed! Trying again in 10 seconds.");
-                setTimeout(()=>{
-                    this.connectToServer();
-                }, 10000);
-            }
-        });
+        this.server.on('disconnected', this._serverDisconnectCallback);
 
         // If it works, then we keep track of the connection!
         this.server.on('open', (id) => {
@@ -120,28 +120,40 @@ export class ConnectionManager {
 
             // Now try and pull in our old friends!
             this.peerHistory.forEach(p=>{this.connectToPeer(p);});
-
-            // Now that we've connected once, set a new "disconnect" handler to just try and reconnect.
-            this.server.on('disconnected', () => {
-                let prevState = this.state;
-                this._notifyStatusChange("disconnected");
-
-                // See if we want to try and reconect:
-                if (prevState !== "quitting") {
-                    console.log("Got disconnected. Trying to reconnect!");
-                    this.server.reconnect();
-                    this._notifyStatusChange("reconnecting");
-                }
-            });
         });
 
         this.server.on('connection', (conn) => {this.gotNewConnection(conn);});
     }
 
+    _handleServerDisconnect() {
+        let prevState = this.state;
+        this._notifyStatusChange("disconnected");
+
+        // See if we want to try and reconect:
+        if (prevState === "connecting") {
+            console.error("Initial connect attempt failed! Trying again in 10 seconds.");
+            setTimeout(()=>{
+                this.connectToServer();
+            }, 10000);
+        }
+        else if (prevState !== "quitting") {
+            // See if we want to try and reconect:
+            console.log("Got disconnected. Trying to reconnect!");
+            this.server.reconnect();
+            this._notifyStatusChange("reconnecting");
+        }
+    }
+
     disconnectFromServer() {
         this.state = "quitting";
+
+        // Disconnect all of the peers first!
+        for (const peer_id of Object.keys(this.peers)) {
+            this.disconnectPeer(peer_id, false);
+        }
+
         if (this.server !== null) {
-            this.server.disconnect();
+            this.server.destroy();
             this.server = null;
         }
     }
@@ -197,10 +209,14 @@ export class ConnectionManager {
         console.log("The connection to " + peer_id + " is closed!");
         let prevState = this.peers[peer_id].state;
 
-        // If we disconnected on purpose, just drop this connection from the list.
         if (prevState === "quitting") {
             delete this.peers[peer_id];
-            this._notifyPeerStatusChange(peer_id, "deleted");
+            this._notifyPeerStatusChange(peer_id, "deleted", false);
+        }
+        else if (prevState === "removing") {
+            // If we disconnected on purpose, just drop this connection from the list.
+            delete this.peers[peer_id];
+            this._notifyPeerStatusChange(peer_id, "deleted", true);
         }
         else {
             this._notifyPeerStatusChange(peer_id, "disconnected");
@@ -223,14 +239,14 @@ export class ConnectionManager {
         this._updateNotifier.emit('data', peer_id, data);
     }
 
-    disconnectPeer(peer_id) {
+    disconnectPeer(peer_id, remove=false) {
         if (peer_id in this.peers) {
             if (this.peers[peer_id].state !== "connected") {
                 delete this.peers[peer_id];
-                this._notifyPeerStatusChange(peer_id, "deleted");
+                this._notifyPeerStatusChange(peer_id, "deleted", remove);
             }
             else {
-                this._notifyPeerStatusChange(peer_id, "quitting");
+                this._notifyPeerStatusChange(peer_id, remove ? "removing" : "quitting");
                 this.peers[peer_id].conn.close();
             }
         }
@@ -275,6 +291,8 @@ export class PeerApp extends React.Component {
             peerInfo: [],
             friendId: '',
         }
+
+        this._syncConnectionCallback = this._syncConnectionState.bind(this);
     }
 
     _syncConnectionState() {
@@ -296,15 +314,13 @@ export class PeerApp extends React.Component {
 
     componentDidMount() {
         // Subscribe to updates in connection status
-        this._conn.subscribeStatus(()=>this._syncConnectionState());
-
-        // Try to connect:
-        this._conn.connectToServer();
+        this._conn.subscribeStatus(this._syncConnectionCallback);
+        this._syncConnectionState();
     }
 
-//    componentWillUnmount() {
-//        this._conn.disconnectFromServer();
-//    }
+    componentWillUnmount() {
+        this._conn.unsubscribeStatus(this._syncConnectionCallback);
+    }
 
 //    _send() {
 //        this._conn.sendToPeer(this.state.friendId, this.state.message);

@@ -20,30 +20,51 @@ class TreeView extends React.Component {
         this.state = {
             data: {},
         };
+
+        this._alreadyUpdating = false;
+        this._needToUpdate = false;
     }
 
     async _updateTree() {
         if (!this.props.cache) return;
-        console.log("Tree updating");
 
-        // From whatever node is selected, walk up to its parent node and then show a few layers of children
-        const sel = this.props.selected;
-
-        // Walk up to N parents above me!
-        const parentChain = await this.props.cache.getChain(sel, null, 15);
-
-        // If there _is_ no chain returned, then this block is invalid!
-        if (parentChain.length === 0) {
-            this.setState({data: {}});
+        // If we're in the middle of updating, just signal ourselves to update
+        // again when it's done.
+        if (this._alreadyUpdating) {
+            this._needToUpdate = true;
             return;
         }
-        const parent = parentChain[0];
 
-        // Recursively grab children and build a tree
-        const newData = await this._makeTreeFromBlock(parent, 30);
-        this.setState({
-            data: newData,
-        });
+        this._alreadyUpdating = true;
+        try {
+            // From whatever node is selected, walk up to its parent node and then show a few layers of children
+            const sel = this.props.selected;
+
+            // Walk up to N parents above me!
+            const parentChain = await this.props.cache.getChain(sel, null, 15);
+
+            // If there _is_ no chain returned, then this block is invalid!
+            if (parentChain.length === 0) {
+                this.setState({data: {}});
+                return;
+            }
+            const parent = parentChain[0];
+
+            // Recursively grab children and build a tree
+            const newData = await this._makeTreeFromBlock(parent, 30);
+            this.setState({
+                data: newData,
+            });
+        }
+        finally {
+            this._alreadyUpdating = false;
+        }
+
+        // If we got another call to _updateTree() while we were running, trigger it to be started.
+        if (this._needToUpdate) {
+            this._needToUpdate = false;
+            setTimeout(()=>{this._updateTree()}, 0);
+        }
     }
 
     async _makeTreeFromBlock(hash, depth) {
@@ -67,6 +88,11 @@ class TreeView extends React.Component {
             //TODO: Maybe find a way to track and/or cancel these updates???
             this._updateTree();
         }
+    }
+
+    componentDidMount() {
+        //TODO: Maybe find a way to track and/or cancel these updates???
+        this._updateTree();
     }
 
     render() {

@@ -130,7 +130,7 @@ export class AccountView extends React.Component {
                 </ListItemIcon>
                 <ListItemText
                     primary="Balance"
-                    secondary={"\u211C" + balance.toString()}
+                    secondary={"\u211C " + balance.toString()}
                 />
                 </ListItem>
             </List>

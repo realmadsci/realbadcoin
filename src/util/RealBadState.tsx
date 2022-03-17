@@ -549,8 +549,9 @@ export class RealBadCache {
 
             //TODO: Maybe find a more efficient method for this other
             // than "construct entire chains and compare them"!
-            let oldChain = this.getChain(this._lastMiningRoot);
-            let newChain = this.getChain(prevHash);
+            // For now, we achieve some level of sanity in the search by limiting our history to 1000 blocks.
+            let oldChain = this.getChain(this._lastMiningRoot, null, 1000);
+            let newChain = this.getChain(prevHash, null, 1000);
 
             // These are "Removed" blocks. All transactions in them should be added to the tx pool
             let removedBlocks = oldChain.filter((b, i)=>!newChain.includes(b));
