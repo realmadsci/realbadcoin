@@ -1,7 +1,14 @@
 // View contents of a single block
 import * as React from 'react';
 
-import Tree from 'react-d3-tree';
+import Box from '@mui/material/Box';
+import Fab from '@mui/material/Fab';
+
+import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
+
+import Tree from './components/react-d3-tree/Tree/index.tsx';
+
+import ResizeDetector from 'react-resize-detector';
 
 import {
     RealBadBlock
@@ -19,6 +26,17 @@ class TreeView extends React.Component {
 
         this.state = {
             data: {},
+            height: 100,
+            width: 100,
+        };
+
+        // Need to connect a resize detector down to the child Tree so it can
+        this.treeContainer = React.createRef();
+        this.onResize = (w, h)=>{
+            this.setState({
+                height: h,
+                width: w,
+            });
         };
 
         this._alreadyUpdating = false;
@@ -51,7 +69,7 @@ class TreeView extends React.Component {
             const parent = parentChain[0];
 
             // Recursively grab children and build a tree
-            const newData = await this._makeTreeFromBlock(parent, 30);
+            const newData = await this._makeTreeFromBlock(parent, sel, 30);
             this.setState({
                 data: newData,
             });
@@ -67,16 +85,16 @@ class TreeView extends React.Component {
         }
     }
 
-    async _makeTreeFromBlock(hash, depth) {
+    async _makeTreeFromBlock(hash, selected, depth) {
         const bi = await this.props.cache.getBlockInfo(hash);
         return {
-            name: RealBadBlock.coerce(bi.block).hash.slice(-8),
+            name: "..." + RealBadBlock.coerce(bi.block).hash.slice(-4),
             attributes: {
-                height: bi.block.blockHeight,
                 confirm: await this.props.cache.getConfirmations(hash),
-                miner: bi.block.rewardDestination.slice(0,8),
+                miner: bi.block.rewardDestination.slice(0,4),
+                selected: (hash === selected) ? true : undefined,
             },
-            children: (depth > 1) && bi.state.children.length ? await Promise.all(bi.state.children.map(async h=>this._makeTreeFromBlock(h, depth-1))) : undefined,
+            children: (depth > 1) && bi.state.children.length ? await Promise.all(bi.state.children.map(async h=>this._makeTreeFromBlock(h, selected, depth-1))) : undefined,
         }
     }
 
@@ -98,11 +116,48 @@ class TreeView extends React.Component {
     render() {
         // Make a tree of nodes based on the actual cache info
         return (
-            <Tree
-                data={this.state.data}
-                separation={{siblings: 1, nonSiblings: 1}}
-                collapsible={false}
-            />
+            <Box
+                ref={this.treeContainer}
+                sx={{
+                    position: "relative",
+                    height: 1,
+                    width: 1,
+                    p: 1,
+                }}
+            >
+                <ResizeDetector
+                    targetDomEl={this.treeContainer.current} onResize={this.onResize}
+                    handleWidth
+                    handleHeight
+                />
+                <Tree
+                    data={this.state.data}
+                    nodeSize={{x: 100, y:100}}
+                    separation={{siblings: 0.6, nonSiblings: 0.6}}
+                    dimensions={{
+                        height: this.state.height,
+                        width: this.state.width,
+                    }}
+                    collapsible={false}
+                    zoomable={false}
+                    scrollable={false}
+                    onNodeClick={(n,e)=>{
+                        console.log("Node clicked");
+                    }}
+                >
+                </Tree>
+                <Fab
+                    size="small"
+                    aria-label="follow"
+                    sx={{
+                        position: "absolute",
+                        bottom: 16,
+                        right: 16,
+                    }}
+                >
+                    <AutorenewRoundedIcon />
+                </Fab>
+            </Box>
         );
     }
 }

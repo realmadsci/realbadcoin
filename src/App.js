@@ -379,7 +379,7 @@ class App extends React.Component {
             <Paper elevation={8}
               sx={{
                 height: 250,
-                // Limiting this one to 75% of view height to prevent the annoying "can't scroll past it" condition on small screens
+                // Limiting this one to fraction of view height to prevent the annoying "can't scroll past it" condition on small screens
                 maxHeight: "75vh",
               }}
             >
