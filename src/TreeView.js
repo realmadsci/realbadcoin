@@ -69,7 +69,7 @@ class TreeView extends React.Component {
             const parent = parentChain[0];
 
             // Recursively grab children and build a tree
-            const newData = await this._makeTreeFromBlock(parent, sel, 30);
+            const newData = await this._makeTreeFromBlock(parent, 30);
             this.setState({
                 data: newData,
             });
@@ -85,16 +85,18 @@ class TreeView extends React.Component {
         }
     }
 
-    async _makeTreeFromBlock(hash, selected, depth) {
+    async _makeTreeFromBlock(hash, depth) {
         const bi = await this.props.cache.getBlockInfo(hash);
+        let cssClasses = "";
+        if (await this.props.cache.getConfirmations(hash) > 3) cssClasses += " block-safe";
+        else if (await this.props.cache.getConfirmations(hash)) cssClasses += " block-accepted";
+
         return {
-            name: "..." + RealBadBlock.coerce(bi.block).hash.slice(-4),
+            name: hash,
             attributes: {
-                confirm: await this.props.cache.getConfirmations(hash),
-                miner: bi.block.rewardDestination.slice(0,4),
-                selected: (hash === selected) ? true : undefined,
+                cssClasses: cssClasses,
             },
-            children: (depth > 1) && bi.state.children.length ? await Promise.all(bi.state.children.map(async h=>this._makeTreeFromBlock(h, selected, depth-1))) : undefined,
+            children: (depth > 1) && bi.state.children.length ? await Promise.all(bi.state.children.map(async h=>this._makeTreeFromBlock(h, depth-1))) : undefined,
         }
     }
 
@@ -123,6 +125,30 @@ class TreeView extends React.Component {
                     height: 1,
                     width: 1,
                     p: 1,
+                    "& .rd3t-tree-container circle": {
+                        stroke: theme=>theme.palette.text.primary,
+                        fill: "transparent",
+                        r: 12,
+                        strokeWidth: 1.5,
+                    },
+                    "& .rd3t-tree-container path": {
+                        stroke: theme=>theme.palette.text.primary,
+                        strokeWidth: 1.5,
+                    },
+                    "& .block-safe circle": {
+                        fill: theme=>theme.palette.primary.dark,
+                    },
+                    "& .block-accepted circle": {
+                        fill: theme=>theme.palette.primary.dark,
+                        opacity: 0.5,
+                    },
+                    "& .rd3t-node-selected circle": {
+                        stroke: theme=>theme.palette.secondary.dark,
+                        strokeWidth: 3,
+                    },
+                    "& .rd3t-label": {
+                        display: "none",
+                    },
                 }}
             >
                 <ResizeDetector
@@ -132,8 +158,9 @@ class TreeView extends React.Component {
                 />
                 <Tree
                     data={this.state.data}
-                    nodeSize={{x: 100, y:100}}
-                    separation={{siblings: 0.6, nonSiblings: 0.6}}
+                    nodeSize={{x: 8*6, y:8*6}}
+                    selectedNode={this.props.selected}
+                    separation={{siblings: 0.8, nonSiblings: 0.8}}
                     dimensions={{
                         height: this.state.height,
                         width: this.state.width,
@@ -149,6 +176,7 @@ class TreeView extends React.Component {
                 <Fab
                     size="small"
                     aria-label="follow"
+                    color="primary"
                     sx={{
                         position: "absolute",
                         bottom: 16,

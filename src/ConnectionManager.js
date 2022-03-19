@@ -99,7 +99,7 @@ export class ConnectionManager {
         this.peerHistory = JSON.parse(sessionStorage.getItem("peer_history") || "[]");
         this.server = new Peer(this.myId, {
             //secure: true,
-            //debug: 3,
+            debug: 3,
             config: {
                 'iceServers': [
                     { url: 'stun:coinpeers.realmadsci.com' },
@@ -329,7 +329,7 @@ export class PeerApp extends React.Component {
 
     render() {
         return (
-            <Stack spacing={1} sx={{p:1}}>
+            <Stack spacing={2} sx={{p:2}}>
                 <List component="div" disablePadding>
                     <ListItem>
                         <ListItemIcon>
@@ -344,7 +344,6 @@ export class PeerApp extends React.Component {
 
                 <TextField
                     label="Friend ID"
-                    variant="filled"
                     InputProps={{
                         startAdornment: (
                             <InputAdornment position="start">

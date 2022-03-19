@@ -78,8 +78,8 @@ class CoinTransfer extends React.Component {
             <Stack
                 component="form"
                 autoComplete="off"
-                spacing={1}
-                sx={{p:1}}
+                spacing={2}
+                sx={{p:2}}
             >
                 <Autocomplete
                     freeSolo
@@ -104,7 +104,6 @@ class CoinTransfer extends React.Component {
                 />
                 <TextField
                     label="Amount to Transfer"
-                    variant="filled"
                     type="number"
                     InputProps={moneyPrefix}
                     value={this.state.amount}
@@ -112,7 +111,6 @@ class CoinTransfer extends React.Component {
                 />
                 <TextField
                     label="Transaction Fee"
-                    variant="filled"
                     type="number"
                     InputProps={moneyPrefix}
                     value={this.state.txFee}

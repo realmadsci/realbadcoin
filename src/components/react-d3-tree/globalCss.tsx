@@ -25,19 +25,7 @@ export default `
 }
 
 /* Node */
-.rd3t-node {
-  cursor: pointer;
-  fill: #777;
-  stroke: #000;
-  stroke-width: 2;
-}
 
-.rd3t-leaf-node {
-  cursor: pointer;
-  fill: transparent;
-  stroke: #000;
-  stroke-width: 1;
-}
 
 .rd3t-label__title {
   fill: #000;

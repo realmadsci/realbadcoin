@@ -344,10 +344,13 @@ class App extends React.Component {
             rowGap: 1,
             minWidth: 350,
           }}>
-            <Paper elevation={8}>
+            <Paper elevation={4}>
               <AccountView pubKeyHex={this.state.pubKeyHex} privKeyHex={this.state.privKeyHex} lstate={this.state.topLState} />
             </Paper>
-            <Paper elevation={8}>
+            <Paper elevation={4}>
+              <PeerApp conn={this._conn} />
+            </Paper>
+            <Paper elevation={4}>
               <CoinTransfer id={this._id} submit={tx=>this.submitTransaction(tx)} lstate={this.state.topLState} />
             </Paper>
           </Box>
@@ -360,7 +363,7 @@ class App extends React.Component {
             rowGap: 1,
             minWidth: 350,
           }}>
-            <Paper elevation={8}>
+            <Paper elevation={4}>
               <BlockView hash={this.state.topHash} block={this.state.topBlock} lstate={this.state.topLState} />
             </Paper>
           </Box>
@@ -373,10 +376,7 @@ class App extends React.Component {
             rowGap: 1,
             minWidth: 350,
           }}>
-            <Paper elevation={8}>
-              <PeerApp conn={this._conn} />
-            </Paper>
-            <Paper elevation={8}
+            <Paper elevation={4}
               sx={{
                 height: 250,
                 // Limiting this one to fraction of view height to prevent the annoying "can't scroll past it" condition on small screens
@@ -385,7 +385,7 @@ class App extends React.Component {
             >
               <TreeView selected={this.state.topHash} cache={this.state.cache} newBlockCounter={this.state.newBlockCounter} />
             </Paper>
-            <Paper elevation={8}>
+            <Paper elevation={4}>
               <BlockView hash={this.state.topHash} block={this.state.topBlock} lstate={this.state.topLState} />
             </Paper>
           </Box>

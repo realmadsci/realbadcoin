@@ -41,6 +41,7 @@ class Tree extends React.Component<TreeProps, TreeState> {
     zoomable: true,
     zoom: 1,
     scrollable: true,
+    selectedNode: null,
     scaleExtent: { min: 0.1, max: 1 },
     nodeSize: { x: 140, y: 140 },
     separation: { siblings: 1, nonSiblings: 2 },
@@ -431,7 +432,7 @@ class Tree extends React.Component<TreeProps, TreeState> {
    * the initial render of the tree.
    */
   generateTree() {
-    const { initialDepth, depthFactor, separation, nodeSize, orientation } = this.props;
+    const { initialDepth, depthFactor, separation, selectedNode, nodeSize, orientation } = this.props;
     const { isInitialRenderForDataset } = this.state;
     const tree = d3tree<TreeNodeDatum>()
       .nodeSize(orientation === 'horizontal' ? [nodeSize.y, nodeSize.x] : [nodeSize.x, nodeSize.y])
@@ -459,11 +460,14 @@ class Tree extends React.Component<TreeProps, TreeState> {
     }
 
     // Center on the "selected" node
-    nodes.forEach(node => {
-      if (node.data?.attributes?.selected) {
-        this.centerNode(node);
-      }
-    });
+    if (selectedNode) {
+      nodes.forEach(node => {
+        if (node.data.name === selectedNode) {
+          node.data.attributes.cssClasses += " rd3t-node-selected";
+          this.centerNode(node);
+        }
+      });
+    }
 
     return { nodes, links };
   }

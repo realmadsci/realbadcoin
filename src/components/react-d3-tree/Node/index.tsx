@@ -173,7 +173,7 @@ export default class Node extends React.Component<NodeProps, NodeState> {
           this.nodeRef = n;
         }}
         style={this.state.initialStyle}
-        className={[data.children ? 'rd3t-node' : 'rd3t-leaf-node', nodeClassName].join(' ').trim()}
+        className={[data.children ? 'rd3t-node' : 'rd3t-leaf-node', nodeClassName, data?.attributes?.cssClasses ?? ""].join(' ').trim()}
         transform={this.state.transform}
       >
         {this.renderNodeElement()}
