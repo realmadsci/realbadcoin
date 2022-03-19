@@ -23,6 +23,9 @@ class TreeView extends React.Component {
         // cache = connection to the CacheWorker for block cache updates.
         // selected = hash of "selected" block
         // newBlockCounter = counter that increments whenever new blocks arrive.
+        // nodeSelected = callback for new selected node
+        // isFollowing = whether we are set to auto-follow or not
+        // enableFollow = callback when the "auto sync" button is clicked
 
         this.state = {
             data: {},
@@ -136,15 +139,15 @@ class TreeView extends React.Component {
                         strokeWidth: 1.5,
                     },
                     "& .block-safe circle": {
-                        fill: theme=>theme.palette.primary.dark,
+                        fill: theme=>theme.palette.primary.main,
                     },
                     "& .block-accepted circle": {
-                        fill: theme=>theme.palette.primary.dark,
+                        fill: theme=>theme.palette.primary.main,
                         opacity: 0.5,
                     },
                     "& .rd3t-node-selected circle": {
-                        stroke: theme=>theme.palette.secondary.dark,
-                        strokeWidth: 3,
+                        //stroke: theme=>theme.palette.secondary.dark,
+                        strokeWidth: 5,
                     },
                     "& .rd3t-label": {
                         display: "none",
@@ -168,23 +171,28 @@ class TreeView extends React.Component {
                     collapsible={false}
                     zoomable={false}
                     scrollable={false}
+                    transitionDuration={0}
+                    centeringTransitionDuration={500}
                     onNodeClick={(n,e)=>{
-                        console.log("Node clicked");
+                        this.props.nodeSelected(n.data.name);
                     }}
                 >
                 </Tree>
-                <Fab
+                {this.props.isFollowing ? null : (
+                    <Fab
                     size="small"
                     aria-label="follow"
                     color="primary"
+                    onClick={this.props.enableFollow}
                     sx={{
                         position: "absolute",
                         bottom: 16,
                         right: 16,
                     }}
-                >
-                    <AutorenewRoundedIcon />
-                </Fab>
+                    >
+                        <AutorenewRoundedIcon />
+                    </Fab>
+                )}
             </Box>
         );
     }

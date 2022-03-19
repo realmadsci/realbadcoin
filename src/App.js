@@ -41,9 +41,15 @@ class App extends React.Component {
       privKeyHex: null,
       pubKeyHex: null,
       activeTab: "1",
+      tvSelected: null,
+      tvBlock: null,
+      tvLState: null,
+      tvFollow: true,
       topHash: null,
       topBlock: null,
       topLState: null,
+      accountSelected: null,
+      accountLState: null,
       cache: null,
       newBlockCounter: 0,
     };
@@ -216,6 +222,8 @@ class App extends React.Component {
   // it gets any new blocks
   async cacheHasNewBlock(hash=undefined, wasRequested=undefined) {
     let topHash = await this.state.cache.bestBlockHash;
+    let safeHash = (await this.state.cache.getChain(topHash, null, 4))[0];
+    let innerState = {};
     if (topHash !== null) {
       let bi = await this.state.cache.getBlockInfo(topHash);
       //console.log("Best block is " + topHash + " at height " + bi.block.blockHeight);
@@ -234,17 +242,47 @@ class App extends React.Component {
         }));
       }
 
+      let accountState = null;
+      console.log(safeHash);
+      if (safeHash) {
+        const bisafe = await this.state.cache.getBlockInfo(safeHash);
+        accountState = RealBadLedgerState.coerce(bisafe?.state);
+      }
+
       // Automatically jump to the selected state
       this.setState({
         topHash: topHash,
-        topBlock: bi.block,
-        topLState: bi.state,
+        topBlock: RealBadBlock.coerce(bi.block),
+        topLState: RealBadLedgerState.coerce(bi.state),
+        accountSelected: safeHash,
+        accountLState: accountState,
       });
     }
     // Click the newBlockCounter, which triggers anything that is looking for "new blocks" to update:
     this.setState(prevState => ({
       newBlockCounter: prevState.newBlockCounter+1,
+      ...innerState
     }));
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    if (this.state.tvFollow) {
+      const nextHash = this.state.accountSelected ?? this.state.topHash;
+      if (nextHash !== this.state.tvSelected) {
+        this.setState({
+          tvSelected: nextHash,
+        });
+      }
+    }
+
+    if (this.state.tvSelected !== prevState.tvSelected) {
+      this.state.cache.getBlockInfo(this.state.tvSelected).then(bi=>{
+        this.setState({
+          tvBlock: bi?.block,
+          tvLState: bi?.state,
+        });
+      });
+    }
   }
 
   async miningLoop(destination) {
@@ -345,13 +383,13 @@ class App extends React.Component {
             minWidth: 350,
           }}>
             <Paper elevation={4}>
-              <AccountView pubKeyHex={this.state.pubKeyHex} privKeyHex={this.state.privKeyHex} lstate={this.state.topLState} />
+              <AccountView pubKeyHex={this.state.pubKeyHex} privKeyHex={this.state.privKeyHex} lstate={this.state.accountLState} />
             </Paper>
             <Paper elevation={4}>
               <PeerApp conn={this._conn} />
             </Paper>
             <Paper elevation={4}>
-              <CoinTransfer id={this._id} submit={tx=>this.submitTransaction(tx)} lstate={this.state.topLState} />
+              <CoinTransfer id={this._id} submit={tx=>this.submitTransaction(tx)} lstate={this.state.accountLState} />
             </Paper>
           </Box>
         </TabPanel>
@@ -378,15 +416,20 @@ class App extends React.Component {
           }}>
             <Paper elevation={4}
               sx={{
-                height: 250,
-                // Limiting this one to fraction of view height to prevent the annoying "can't scroll past it" condition on small screens
-                maxHeight: "75vh",
+                height: 220,
               }}
             >
-              <TreeView selected={this.state.topHash} cache={this.state.cache} newBlockCounter={this.state.newBlockCounter} />
+              <TreeView
+                selected={this.state.tvSelected}
+                nodeSelected={hash=>{this.setState({tvFollow: false, tvSelected: hash})}}
+                isFollowing={this.state.tvFollow}
+                enableFollow={()=>{this.setState({tvFollow: true});}}
+                cache={this.state.cache}
+                newBlockCounter={this.state.newBlockCounter}
+              />
             </Paper>
             <Paper elevation={4}>
-              <BlockView hash={this.state.topHash} block={this.state.topBlock} lstate={this.state.topLState} />
+              <BlockView hash={this.state.tvSelected} block={this.state.tvBlock} lstate={this.state.tvLState} />
             </Paper>
           </Box>
         </TabPanel>
