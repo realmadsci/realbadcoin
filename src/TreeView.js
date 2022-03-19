@@ -58,24 +58,31 @@ class TreeView extends React.Component {
 
         this._alreadyUpdating = true;
         try {
-            // From whatever node is selected, walk up to its parent node and then show a few layers of children
-            const sel = this.props.selected;
+            while (true) {
+                // From whatever node is selected, walk up to its parent node and then show a few layers of children
+                const sel = this.props.selected;
 
-            // Walk up to N parents above me!
-            const parentChain = await this.props.cache.getChain(sel, null, 15);
+                // Walk up to N parents above me!
+                const parentChain = await this.props.cache.getChain(sel, null, 15);
 
-            // If there _is_ no chain returned, then this block is invalid!
-            if (parentChain.length === 0) {
-                this.setState({data: {}});
-                return;
+                // If we get told to update again, abort this one so we can do the newest one!
+                if (this._needToUpdate) break;
+
+                // If there _is_ no chain returned, then this block is invalid!
+                if (parentChain.length === 0) {
+                    this.setState({data: {}});
+                    return;
+                }
+                const parent = parentChain[0];
+
+                // Recursively grab children and build a tree
+                const newData = await this._makeTreeFromBlock(parent, 30);
+                if (this._needToUpdate) break;
+                this.setState({
+                    data: newData,
+                });
+                break;
             }
-            const parent = parentChain[0];
-
-            // Recursively grab children and build a tree
-            const newData = await this._makeTreeFromBlock(parent, 30);
-            this.setState({
-                data: newData,
-            });
         }
         finally {
             this._alreadyUpdating = false;
