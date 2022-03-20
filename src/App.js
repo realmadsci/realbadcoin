@@ -237,7 +237,7 @@ class App extends React.Component {
     // Shiny new blocks that we requested have arrived!
     if ("blockList" in d) {
       console.error("Got " + d.blockList.length.toString() + " blocks from " + peer);
-      this._addBlocks(d.blockList, peer);
+      if (d.blockList.length) this._addBlocks(d.blockList, peer);
     }
 
     // Somebody wants to know what we know
