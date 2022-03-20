@@ -20,6 +20,7 @@ import { ConnectionManager, PeerApp } from './ConnectionManager';
 import BlockView from './BlockView';
 import TreeView from './TreeView';
 import CoinTransfer from './CoinTransfer';
+import HashDemo from './HashDemo';
 
 // For the MineWorker:
 import * as Comlink from 'comlink';
@@ -520,6 +521,9 @@ class App extends React.Component {
             rowGap: 1,
             minWidth: 350,
           }}>
+            <Paper elevation={4}>
+              <HashDemo />
+            </Paper>
             <Paper elevation={4}>
               <BlockView hash={this.state.topHash} block={this.state.topBlock} lstate={this.state.topLState} />
             </Paper>
