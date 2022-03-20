@@ -61,6 +61,7 @@ class App extends React.Component {
     this._newPeerCallback = this.handleNewPeer.bind(this);
 
     this._blockBacklog = [];
+    this._gapsToFix = [];
   }
 
   async _initialize() {
@@ -77,7 +78,7 @@ class App extends React.Component {
     const state = checkpoint?.state;
     if (useCheckpoint && block && state) {
       await this.state.cache.restoreCheckpoint(block, state);
-      await this.cacheHasNewBlock();
+      await this.cacheHasNewBlock(block.hash, null);
     }
   }
 
@@ -119,13 +120,12 @@ class App extends React.Component {
 
   async _processSomeBlocks() {
     if (this._blockBacklog.length) {
-      const chunkLen = Math.min(1000, this._blockBacklog.length);
-      const blocks = this._blockBacklog.slice(0, chunkLen);
-      this._blockBacklog = this._blockBacklog.slice(blocks.length);
-      console.log("Feeding " + chunkLen.toString() + " more blocks into cacheworker. " + this._blockBacklog.length + " more to go.");
+      const chunk = this._blockBacklog.shift();
+      const blocks = chunk.blocks;
+      console.log("Feeding " + blocks.length.toString() + " blocks from " + chunk.source + " into cacheworker. " + this._blockBacklog.length + " more chunks to go.");
       if (await this.state.cache.addBlocks(blocks)) {
-        // We added a new block to the cache, so update our UI!
-        await this.cacheHasNewBlock();
+        // We added a new block to the cache, so update our UI and search for gaps to fill
+        await this.cacheHasNewBlock(RealBadBlock.coerce(blocks.slice(-1)[0]).hash, chunk.source);
       }
     }
 
@@ -135,12 +135,77 @@ class App extends React.Component {
     }
     else {
       this._processTimer = undefined;
+
+      // See if we can fix any gaps now that we are "idle":
+      await this._fixGaps();
     }
   }
 
-  _addBlocks(blocks) {
+  async _fixGaps() {
+    clearTimeout(this._gapCheckTimer);
+    this._gapCheckTimer = undefined;
+
+    // If there's a backlog, then defer until later:
+    if (this._blockBacklog.length) {
+      console.log("Gap fix has backlog. We'll get called again later.");
+      return;
+    }
+
+    console.log("Trying to fix gaps. _gapsToFix = " + JSON.stringify(this._gapsToFix));
+
+    // Check all the gaps until we find one that isn't "fixed" and then make a request to try
+    // and fetch it's parent:
+    let notFixed = [];
+    let first = true;
+    for (let gap of this._gapsToFix) {
+      gap = JSON.parse(gap);
+      console.log("Checking gap"); console.log(gap);
+      let oldestParent = (await this.state.cache.getBlockInfo((await this.state.cache.getChain(gap.gap))[0])).block;
+      console.log(oldestParent);
+      if (oldestParent.blockHeight === 0) continue;
+      else if (this._conn.peers[gap.source]?.state !== "connected") {
+        console.log("Can't fill gap because " + gap.source + " is no longer connected");
+        continue;
+      }
+      else if (first) {
+        // a bit messy asking for ALL of them, but :shrug: first = false;
+
+        // Send a request to try and get the gap filled!
+        const sh = await this._getLikelySharedHash();
+        console.error("Requesting gap-filler blocks from peer \"" + gap.source + "\"");
+        this._conn.sendToPeer(gap.source, JSON.stringify({
+          requestBlocks: {
+            have: null,//sh.isCheckpoint ? null : sh.likelyHash, // Only send our "root hash" if we have a full chain already (i.e. we aren't branched from a checkpoint).
+            want: RealBadBlock.coerce(oldestParent).hash, // TODO: Maybe ask for prevHash here to avoid overlaps?
+          }
+        }));
+      }
+
+      // If we get here it's not fully fixed yet.
+      // NOTE: Need to de-duplicate these in case we've made _some_ progress on a gap!
+      const newGap = JSON.stringify({
+        source: gap.source,
+        // NOTE: We have to put a block that we KNOW about in there, and we want to always pick
+        // the same one for multiple "newBlock" events on the same chain:
+        gap: RealBadBlock.coerce(oldestParent).hash,
+      });
+      if (!notFixed.includes(newGap)) notFixed.push(newGap);
+    }
+    this._gapsToFix = notFixed;
+
+    // If there are any gaps that aren't cleared up, then set ourselves a timer to check again later!
+    if (this._gapsToFix.length) {
+      console.log("There are un-finished gaps. Setting watchdog for later.");
+      this._gapCheckTimer = setTimeout(()=>{this._fixGaps()}, 10000);
+    }
+  }
+
+  _addBlocks(blocks, peer) {
     // NOTE: For now, we don't really care about tracking the "source" for blocks that arrive in bulk.
-    this._blockBacklog = this._blockBacklog.concat(blocks);
+    this._blockBacklog.push({
+      blocks: blocks,
+      source: peer,
+    });
     if (!this._processTimer) {
       this._processTimer = setTimeout(()=>{this._processSomeBlocks()},0);
     }
@@ -155,21 +220,6 @@ class App extends React.Component {
       let block = RealBadBlock.coerce(d.newBlock);
       console.error("Got block " + block.blockHeight + " from " + peer);
       if (await this.state.cache.addBlock(block, peer, false)) {
-
-        // If the new block was good but still needs a parent, then send a request to try to fetch it's parent:
-        let hash = block.hash;
-        let oldestParent = (await this.state.cache.getBlockInfo((await this.state.cache.getChain(hash))[0])).block;
-        if (oldestParent.blockHeight !== 0) {
-          const sh = await this._getLikelySharedHash();
-          console.error("Requesting gap-filler blocks from peer \"" + peer + "\"");
-          this._conn.sendToPeer(peer, JSON.stringify({
-            requestBlocks: {
-              have: sh.isCheckpoint ? null : sh.likelyHash, // Only send our "root hash" if we have a full chain already (i.e. we aren't branched from a checkpoint).
-              want: oldestParent.prevHash,
-            }
-          }));
-        }
-
         // Whenever a new _valid_ block comes along AND we didn't request it,
         // broadcast it out to all our friends:
         this._conn.broadcast(
@@ -179,20 +229,21 @@ class App extends React.Component {
           [peer], // Don't broadcast BACK to the person who told us about this!
         );
 
-        // We added a new block to the cache, so update our UI!
-        await this.cacheHasNewBlock(hash);
+        // We added a new block to the cache, so update our UI and search for gaps to fill
+        await this.cacheHasNewBlock(block.hash, peer);
       }
     }
 
     // Shiny new blocks that we requested have arrived!
     if ("blockList" in d) {
       console.error("Got " + d.blockList.length.toString() + " blocks from " + peer);
-      this._addBlocks(d.blockList);
+      this._addBlocks(d.blockList, peer);
     }
 
     // Somebody wants to know what we know
     if ("requestBlocks" in d) {
-      let resultChain = await this.state.cache.getChain(d.requestBlocks?.want, d.requestBlocks?.have);
+      // NOTE: We only send a maximum of 100 blocks per request. They'll just have to ask again later!
+      let resultChain = await this.state.cache.getChain(d.requestBlocks?.want, d.requestBlocks?.have, 100);
 
       // Get the blocks and send them
       let blocks = await this.state.cache.getBlocks(resultChain);
@@ -220,9 +271,28 @@ class App extends React.Component {
 
   // Set this up as a callback from the cache when
   // it gets any new blocks
-  async cacheHasNewBlock(hash=undefined, wasRequested=undefined) {
+  async cacheHasNewBlock(hash, source) {
+
+    // If the new block still needs a parent and we know where it came from, then add it to
+    // the "Gap fix queue" so we can try and fetch its parents:
+    if (source && (source !== this._conn.myId)) {
+      let oldestParent = (await this.state.cache.getBlockInfo((await this.state.cache.getChain(hash))[0])).block;
+      if (oldestParent.blockHeight !== 0) {
+        const newGap = JSON.stringify({
+          source: source,
+          // NOTE: We have to put a block that we KNOW about in there, and we want to always pick
+          // the same one for multiple "newBlock" events on the same chain:
+          gap: RealBadBlock.coerce(oldestParent).hash,
+        });
+        if (!this._gapsToFix.includes(newGap)) this._gapsToFix.push(newGap);
+      }
+
+      // Try and make requests to fill the gaps
+      await this._fixGaps();
+    }
+
+    // Update the new "best branch"
     let topHash = await this.state.cache.bestBlockHash;
-    let safeHash = (await this.state.cache.getChain(topHash, null, 4))[0];
     let innerState = {};
     if (topHash !== null) {
       let bi = await this.state.cache.getBlockInfo(topHash);
@@ -243,7 +313,7 @@ class App extends React.Component {
       }
 
       let accountState = null;
-      console.log(safeHash);
+      let safeHash = (await this.state.cache.getChain(topHash, null, 4))[0];
       if (safeHash) {
         const bisafe = await this.state.cache.getBlockInfo(safeHash);
         accountState = RealBadLedgerState.coerce(bisafe?.state);
@@ -350,6 +420,10 @@ class App extends React.Component {
   }
 
   componentWillUnmount() {
+    // Stop timers
+    clearTimeout(this._processTimer);
+    clearTimeout(this._gapCheckTimer);
+
     // Kill off the web workers
     this._rawMineWorker.terminate();
     this._rawCacheWorker.terminate();

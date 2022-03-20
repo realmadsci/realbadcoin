@@ -186,7 +186,7 @@ export class ConnectionManager {
 
     connectToPeer(peer_id) {
         console.log("Trying to connect to peer_id = " + peer_id)
-        const conn = this.server.connect(peer_id, { reliable: true });
+        const conn = this.server.connect(peer_id, { reliable: false });
 
         this.peers[peer_id] = {
             state: "connecting",
