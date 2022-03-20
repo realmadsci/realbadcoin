@@ -135,24 +135,28 @@ class TreeView extends React.Component {
                     height: 1,
                     width: 1,
                     p: 1,
-                    "& .rd3t-tree-container circle": {
+                    "& .rd3t-tree-container rect": {
                         stroke: theme=>theme.palette.text.primary,
                         fill: "transparent",
-                        r: 12,
+                        width: 24,
+                        height: 24,
+                        rx: 6,
+                        ry: 6,
+                        transform: "translate(-12px, -12px)",
                         strokeWidth: 1.5,
                     },
                     "& .rd3t-tree-container path": {
                         stroke: theme=>theme.palette.text.primary,
                         strokeWidth: 1.5,
                     },
-                    "& .block-safe circle": {
+                    "& .block-safe rect": {
                         fill: theme=>theme.palette.primary.main,
                     },
-                    "& .block-accepted circle": {
+                    "& .block-accepted rect": {
                         fill: theme=>theme.palette.primary.main,
                         opacity: 0.5,
                     },
-                    "& .rd3t-node-selected circle": {
+                    "& .rd3t-node-selected rect": {
                         //stroke: theme=>theme.palette.secondary.dark,
                         strokeWidth: 5,
                     },

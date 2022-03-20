@@ -1,7 +1,7 @@
 import React from 'react';
 import { CustomNodeElementProps, SyntheticEventHandler } from '../types/common';
 
-const DEFAULT_NODE_CIRCLE_RADIUS = 15;
+const DEFAULT_NODE_CIRCLE_RADIUS = 16;
 
 const textLayout = {
   title: {
@@ -24,15 +24,18 @@ const DefaultNodeElement: React.FunctionComponent<DefaultNodeElementProps> = ({
   onNodeMouseOut,
 }) => (
   <>
-    <circle
-      r={DEFAULT_NODE_CIRCLE_RADIUS}
+    <rect
+      rx={DEFAULT_NODE_CIRCLE_RADIUS/4}
+      ry={DEFAULT_NODE_CIRCLE_RADIUS/4}
+      width={2*DEFAULT_NODE_CIRCLE_RADIUS}
+      height={2*DEFAULT_NODE_CIRCLE_RADIUS}
       onClick={evt => {
         toggleNode();
         onNodeClick(evt);
       }}
       onMouseOver={onNodeMouseOver}
       onMouseOut={onNodeMouseOut}
-    ></circle>
+    ></rect>
     <g className="rd3t-label">
       <text className="rd3t-label__title" {...textLayout.title}>
         {nodeDatum.name}
