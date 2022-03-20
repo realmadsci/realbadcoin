@@ -374,7 +374,7 @@ export class PeerApp extends React.Component {
                                     this._conn.connectToPeer(p.id);
                                 }}
                                 onDelete={()=>{
-                                    this._conn.disconnectPeer(p.id);
+                                    this._conn.disconnectPeer(p.id, true);
                                 }}
                                 color={(p.state === "connected") ? "success" : undefined}
                             />)
