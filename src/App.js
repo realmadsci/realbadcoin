@@ -61,7 +61,8 @@ class App extends React.Component {
     this._newPeerCallback = this.handleNewPeer.bind(this);
 
     this._blockBacklog = [];
-    this._gapsToFix = {}; // Hash and peer of blocks with gaps below them.
+    this._newGaps = [];   // New gaps we've discovered but haven't been pulled into the "gap processing loop"
+    this._gapsToFix = {}; // Hash and peer of blocks with gaps below them. THIS MUST ONLY BE ACCESSED BY _fixGaps()!
   }
 
   async _initialize() {
@@ -100,18 +101,14 @@ class App extends React.Component {
     await this._initialized;
 
     // Whenever we get connected to a new peer, ask for all the blocks they know about!
-    console.error("Pestering peer \"" + peer + "\" with requestBlocks");
+    console.log("Pestering peer \"" + peer + "\" with requestBlocks");
     const sh = await this._getLikelySharedHash();
     const msg = JSON.stringify({
       requestBlocks: {
         have: sh.likelyHash, // NOTE: we don't care if we are using a checkpoint here. In fact, we DEFINITELY want to just use the checkpoint hash for the first fetch!
         want: null, // Null means "give me your best chain"
     }});
-    setTimeout(()=>{
-      console.log("poke " + peer + " with " + msg);
-      this._conn.sendToPeer(peer, msg);
-    },
-    3000);
+    this._conn.sendToPeer(peer, msg);
   }
 
   // Submit a new transaction to be included in future blocks
@@ -153,72 +150,98 @@ class App extends React.Component {
     this._gapCheckTimer = undefined;
 
     // If there's a backlog, then defer until later:
-    if (this._blockBacklog.length) {
-      console.log("Gap fix has backlog. We'll get called again later.");
+    if (this._blockBacklog.length || this._fixGapsIsRunning) {
+      //console.log("Gap fix has backlog or is already running. We'll get called again later.");
       return;
     }
 
-    console.log("Trying to fix gaps. _gapsToFix = " + JSON.stringify(this._gapsToFix));
+    try {
+      // Make sure we never reenter this critical section!
+      this._fixGapsIsRunning = true;
 
-    // Check all the gaps until we find one that isn't "fixed" and then make a request to try
-    // and fetch it's parent:
-    const gaps = Object.keys(this._gapsToFix);
-    let remainingGaps = {};
-    for (const gap of gaps) {
-      const source = this._gapsToFix[gap].source;
-      let attempts = this._gapsToFix[gap].attempts;
-
-      console.log("Checking gap above " + gap + " from " + source);
-      const oldestParent = (await this.state.cache.getBlockInfo((await this.state.cache.getChain(gap))[0])).block;
-      const oldestParentHash = RealBadBlock.coerce(oldestParent).hash;
-      console.log(oldestParent);
-      console.log(oldestParentHash);
-
-      if (oldestParent.blockHeight === 0) continue; // Not a gap anymore!
-      else if (
-        (oldestParentHash !== gap) && (
-          (oldestParentHash in this._gapsToFix) ||
-          (oldestParentHash in remainingGaps)
-        )
-      ) {
-        // This one is part of an already-known gap.
-        // Don't keep two copies!
-        continue;
-      }
-      else if (!attempts || isTimeout) {
-        // We try again if we've never tried or if we are executing the "timeout" event.
-        attempts++;
-        if (attempts > 5) continue; // Throw the "gap" away if we've tried enough times already!
-
-        // Send a request to try and get the gap filled!
-        const sh = await this._getLikelySharedHash();
-        console.error("Requesting gap-filler blocks for " + gap + " from peer \"" + source + "\" by fetching " + oldestParent.prevHash);
-        const req = JSON.stringify({
-          requestBlocks: {
-            have: sh.isCheckpoint ? null : sh.likelyHash, // Only send our "root hash" if we have a full chain already (i.e. we aren't branched from a checkpoint).
-            want: oldestParent.prevHash,
-          }
-        });
-        // The first two tries go directly to the "source".
-        if (attempts <= 2) this._conn.sendToPeer(source, req);
-        // After that, we _broadcast_ it a few times!
-        // NOTE: This will happen if the previous source gets disconnected!
-        else this._conn.broadcast(req);
+      // Pull in all new gaps atomically (i.e. with no "await" events) and merge them into the main list
+      const newGaps = this._newGaps;
+      this._newGaps = [];
+      for (const gap of newGaps) {
+        const { hash, source } = gap;
+        if (hash in this._gapsToFix) {
+          // If we get the same gap from multiple "sources", then we want to
+          // tag the _most recent one to give us a fresh block_!
+          this._gapsToFix[hash].source = source;
+        }
+        else {
+          this._gapsToFix[hash] = {
+            source: source,
+            attempts: 0,
+          };
+        }
       }
 
-      // If we get here it's not fully fixed yet.
-      // Keep this gap in our list
-      remainingGaps[oldestParentHash] = {
-        source: source,
-        attempts: attempts,
-      };
+      //console.log("Trying to fix gaps. _gapsToFix = " + JSON.stringify(this._gapsToFix));
+
+      // Check all the gaps until we find one that isn't "fixed" and then make a request to try
+      // and fetch it's parent:
+      const gaps = Object.keys(this._gapsToFix);
+      let remainingGaps = {};
+      for (const gap of gaps) {
+        const source = this._gapsToFix[gap].source;
+        let attempts = this._gapsToFix[gap].attempts;
+
+        //console.log("Checking gap above " + gap + " from " + source);
+        const oldestParent = (await this.state.cache.getBlockInfo((await this.state.cache.getChain(gap))[0])).block;
+        const oldestParentHash = RealBadBlock.coerce(oldestParent).hash;
+        //console.log(oldestParent);
+        //console.log(oldestParentHash);
+
+        if (oldestParent.blockHeight === 0) continue; // Not a gap anymore!
+        else if (
+          (oldestParentHash !== gap) && (
+            (oldestParentHash in this._gapsToFix) ||
+            (oldestParentHash in remainingGaps)
+          )
+        ) {
+          // This one is part of an already-known gap.
+          // Don't keep two copies!
+          continue;
+        }
+        else if (!attempts || isTimeout) {
+          // We try again if we've never tried or if we are executing the "timeout" event.
+          attempts++;
+          if (attempts > 5) continue; // Throw the "gap" away if we've tried enough times already!
+
+          // Send a request to try and get the gap filled!
+          const sh = await this._getLikelySharedHash();
+          console.log("Requesting gap-filler blocks for " + oldestParent.blockHeight + " from peer \"" + source + "\" by fetching " + oldestParent.prevHash);
+          const req = JSON.stringify({
+            requestBlocks: {
+              have: sh.isCheckpoint ? null : sh.likelyHash, // Only send our "root hash" if we have a full chain already (i.e. we aren't branched from a checkpoint).
+              want: oldestParent.prevHash,
+            }
+          });
+          // The first two tries go directly to the "source".
+          if (attempts <= 2) this._conn.sendToPeer(source, req);
+          // After that, we _broadcast_ it a few times!
+          // NOTE: This will happen if the previous source gets disconnected!
+          else this._conn.broadcast(req);
+        }
+
+        // If we get here it's not fully fixed yet.
+        // Keep this gap in our list
+        remainingGaps[oldestParentHash] = {
+          source: source,
+          attempts: attempts,
+        };
+      }
+      this._gapsToFix = remainingGaps;
+
+      // If there are any gaps that aren't cleared up, then set ourselves a timer to check again later!
+      if (Object.keys(this._gapsToFix).length) {
+        //console.log("There are un-finished gaps. Setting watchdog for later.");
+        this._gapCheckTimer = setTimeout(()=>{this._fixGaps(true)}, 10000);
+      }
     }
-    this._gapsToFix = remainingGaps;
-
-    // If there are any gaps that aren't cleared up, then set ourselves a timer to check again later!
-    if (Object.keys(this._gapsToFix).length) {
-      console.log("There are un-finished gaps. Setting watchdog for later.");
-      this._gapCheckTimer = setTimeout(()=>{this._fixGaps(true)}, 10000);
+    finally {
+      this._fixGapsIsRunning = false;
     }
   }
 
@@ -240,7 +263,7 @@ class App extends React.Component {
     if ("newBlock" in d) {
       // Whenever we see a new block arrival, see if we can add it to the cache:
       let block = RealBadBlock.coerce(d.newBlock);
-      console.error("Got block " + block.blockHeight + " from " + peer);
+      console.log("Got block " + block.blockHeight + " from " + peer);
       if (await this.state.cache.addBlock(block, peer, false)) {
         // Whenever a new _valid_ block comes along AND we didn't request it,
         // broadcast it out to all our friends:
@@ -258,7 +281,7 @@ class App extends React.Component {
 
     // Shiny new blocks that we requested have arrived!
     if ("blockList" in d) {
-      console.error("Got " + d.blockList.length.toString() + " blocks from " + peer);
+      console.log("Got " + d.blockList.length.toString() + " blocks from " + peer);
       if (d.blockList.length) this._addBlocks(d.blockList, peer);
     }
 
@@ -304,20 +327,12 @@ class App extends React.Component {
         // We also want to always pick the same one for multiple "newBlock" events on the same chain so that
         // we can avoid redundantly fetching the same data.
         const gapHash = RealBadBlock.coerce(oldestParent).hash;
-        if (gapHash in this._gapsToFix) {
-          // If we get the same gap from multiple "sources", then we want to
-          // tag the _most recent one to give us a fresh block_!
-          this._gapsToFix[gapHash].source = source;
-        }
-        else {
-          this._gapsToFix[gapHash] = {
-            source: source,
-            attempts: 0,
-          };
-
-          // Since this one's new, try and request it right away!
-          await this._fixGaps();
-        }
+        this._newGaps.push({
+          hash: gapHash,
+          source: source,
+        });
+        // Pull in the new gaps info and try to make requests to fill it!
+        await this._fixGaps();
       }
     }
 

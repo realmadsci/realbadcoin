@@ -99,7 +99,7 @@ export class ConnectionManager {
         this.peerHistory = JSON.parse(sessionStorage.getItem("peer_history") || "[]");
         this.server = new Peer(this.myId, {
             //secure: true,
-            debug: 3,
+            //debug: 3,
             config: {
                 'iceServers': [
                     { url: 'stun:coinpeers.realmadsci.com' },
