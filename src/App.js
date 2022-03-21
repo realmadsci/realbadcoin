@@ -47,10 +47,11 @@ class App extends React.Component {
       tvLState: null,
       tvFollow: true,
       topHash: null,
-      topBlock: null,
-      topLState: null,
+      topBlock: null, // Not actually _used_ anymore!
+      topLState: null, // Not actually _used_ anymore!
       accountSelected: null,
       accountLState: null,
+      miningBlock: null,
       cache: null,
       newBlockCounter: 0,
     };
@@ -393,10 +394,12 @@ class App extends React.Component {
 
     if (this.state.tvSelected !== prevState.tvSelected) {
       this.state.cache.getBlockInfo(this.state.tvSelected).then(bi=>{
-        this.setState({
-          tvBlock: bi?.block,
-          tvLState: bi?.state,
-        });
+        if (bi) {
+          this.setState({
+            tvBlock: RealBadBlock.coerce(bi.block),
+            tvLState: RealBadLedgerState.coerce(bi.state),
+          });
+        }
       });
     }
   }
@@ -408,9 +411,12 @@ class App extends React.Component {
     let sealAttempts = 2e5; // How many attempts to make per sealing loop
     while (true) {
       // Get a new mineable block from the cache, which will include up-to-date list of transactions, etc.
-      let unsealed = await this.state.cache.makeMineableBlock(reward, destination);
+      let unsealed = RealBadBlock.coerce(await this.state.cache.makeMineableBlock(reward, destination));
       unsealed.nonce = Math.round(Math.random() * 2**32);
-      //console.log("Set up to mine block: " + JSON.stringify(unsealed));
+      console.log("Set up to mine block: " + JSON.stringify(unsealed));
+      this.setState({
+        miningBlock: unsealed,
+      });
 
       let before = Date.now();
       let b = await this._MineWorker.tryToSeal(unsealed, sealAttempts);
@@ -525,7 +531,7 @@ class App extends React.Component {
               <HashDemo />
             </Paper>
             <Paper elevation={4}>
-              <BlockView hash={this.state.topHash} block={this.state.topBlock} lstate={this.state.topLState} />
+              <BlockView hash={null} block={this.state.miningBlock} lstate={null} />
             </Paper>
           </Box>
         </TabPanel>

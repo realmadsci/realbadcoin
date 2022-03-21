@@ -1,6 +1,7 @@
 // View contents of a single block
 import * as React from 'react';
 
+import Box from '@mui/material/Box';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
@@ -8,6 +9,8 @@ import ListItemText from '@mui/material/ListItemText';
 import {
     RealBadBlock
 } from './util/RealBadCoin.tsx';
+
+import TransactionView from './TransactionView';
 
 function BlockView(props) {
     /* Available fields in RealBadBlock:
@@ -21,11 +24,9 @@ function BlockView(props) {
     nonce = 0;                  // Number that can be changed to cause block's hash to vary
     */
 
-    let hash = props.hash;
     let b = props.block;
-    let s = props.lstate;
     // No block yet, so return "nothing"
-    if (b === null || s === null) return (
+    if (b === null) return (
         <List component="div" disablePadding>
         <ListItem>
             <ListItemText
@@ -35,7 +36,11 @@ function BlockView(props) {
         </List>
     );
 
+    const sealed = props?.block?.isSealed();
+    let hash = sealed ? props.hash : "Unsealed";
+
     return (
+        <>
         <List component="div" disablePadding>
         <ListItem>
             <ListItemText
@@ -51,12 +56,16 @@ function BlockView(props) {
                 secondaryTypographyProps={{variant: "hexblob"}}
             />
         </ListItem>
-        <ListItem>
-            <ListItemText
-                primary="Creation Time"
-                secondary={b.timestamp.toLocaleString()}
-            />
-        </ListItem>
+        {
+            sealed ? (
+                <ListItem>
+                <ListItemText
+                    primary="Creation Time"
+                    secondary={b.timestamp.toLocaleString()}
+                />
+                </ListItem>
+            ) : null
+        }
         <ListItem>
             <ListItemText
                 primary="Mined By"
@@ -70,25 +79,41 @@ function BlockView(props) {
                 secondary={"\u211C" + b.miningReward.toString()}
             />
         </ListItem>
-        <ListItem>
-            <ListItemText
-                primary="Nonce"
-                secondary={b.nonce}
-            />
-        </ListItem>
+        {
+            sealed ? (
+                <ListItem>
+                <ListItemText
+                    primary="Nonce"
+                    secondary={b.nonce}
+                />
+                </ListItem>
+            ) : null
+        }
         <ListItem>
             <ListItemText
                 primary="Target Difficulty"
                 secondary={b.difficulty.toString()}
             />
         </ListItem>
-        <ListItem>
-            <ListItemText
-                primary="Difficulty Metric"
-                secondary={RealBadBlock.difficultyMetric(hash).toString()}
-            />
-        </ListItem>
+        {
+            sealed ? (
+                <ListItem>
+                <ListItemText
+                    primary="Difficulty Metric"
+                    secondary={RealBadBlock.difficultyMetric(hash).toString()}
+                />
+                </ListItem>
+            ) : null
+        }
         </List>
+        {
+            b.transactions.map(tx=>(
+                <Box key={tx.txId}>
+                <TransactionView tx={tx} />
+                </Box>
+            ))
+        }
+        </>
     );
 }
 

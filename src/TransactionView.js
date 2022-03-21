@@ -109,7 +109,7 @@ class TransactionView extends React.Component {
 
     componentDidMount() {
         // Generate some random filler if the parent didn't give us a tx:
-        if (this.tx == undefined) {
+        if (!this.state.tx) {
             makeNftTransfer().then((t)=>this.setState({tx: t}));
         }
     }
@@ -142,7 +142,7 @@ class TransactionView extends React.Component {
                 <ListItem>
                 <ListItemText
                     primary="Amount"
-                    secondary={"\u211C" + d.amount.toString()}
+                    secondary={"\u211C " + d.amount.toString()}
                 />
                 </ListItem>
                 </>
@@ -209,7 +209,7 @@ class TransactionView extends React.Component {
         signature = null;       // Signature of `txId` using the `source` account.
         */
 
-        if (this.state.tx == undefined) return null;
+        if (this.state.tx === undefined) return null;
 
         return (
             <List component="div" disablePadding>
@@ -229,7 +229,7 @@ class TransactionView extends React.Component {
             <ListItem>
                 <ListItemText
                     primary="Transaction Fee"
-                    secondary={"\u211C" + this.state.tx.transactionFee.toString()}
+                    secondary={"\u211C " + this.state.tx.transactionFee.toString()}
                 />
             </ListItem>
             <ListItem>
