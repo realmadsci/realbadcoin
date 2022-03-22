@@ -28,7 +28,7 @@ class TreeView extends React.Component {
         // enableFollow = callback when the "auto sync" button is clicked
 
         this.state = {
-            data: {},
+            data: null,
             height: 100,
             width: 100,
         };
@@ -70,7 +70,7 @@ class TreeView extends React.Component {
 
                 // If there _is_ no chain returned, then this block is invalid!
                 if (parentChain.length === 0) {
-                    this.setState({data: {}});
+                    this.setState({data: null});
                     return;
                 }
                 const parent = parentChain[0];
@@ -111,7 +111,7 @@ class TreeView extends React.Component {
     }
 
     componentDidUpdate(prevProps, prevState) {
-        if ((this.state.data === {}) ||
+        if ((!this.state.data) ||
             (this.props.selected !== prevProps.selected) ||
             (this.props.newBlockCounter !== prevProps.newBlockCounter)
         ) {

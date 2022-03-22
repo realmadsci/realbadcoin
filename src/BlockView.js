@@ -80,7 +80,7 @@ function BlockView(props) {
         <ListItem>
             <ListItemText
                 primary="Block Reward"
-                secondary={"\u211C" + b.miningReward.toString()}
+                secondary={"\u211C " + b.miningReward.toString()}
             />
         </ListItem>
         {

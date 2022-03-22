@@ -68,6 +68,8 @@ class Tree extends React.Component<TreeProps, TreeState> {
   private internalState = {
     targetNode: null,
     isTransitioning: false,
+    prevSelectedNode: null,
+    prevNodes: null,
   };
 
   svgInstanceRef = `rd3t-svg-${uuidv4()}`;
@@ -195,6 +197,7 @@ class Tree extends React.Component<TreeProps, TreeState> {
    * @static
    */
   static assignInternalProperties(data: RawNodeDatum[], currentDepth: number = 0): TreeNodeDatum[] {
+    if (!data) return null;
     // Wrap the root node into an array for recursive transformations if it wasn't in one already.
     const d = Array.isArray(data) ? data : [data];
     return d.map(n => {
@@ -396,7 +399,7 @@ class Tree extends React.Component<TreeProps, TreeState> {
    * This code is adapted from Rob Schmuecker's centerNode method.
    * Link: http://bl.ocks.org/robschmuecker/7880033
    */
-  centerNode = (hierarchyPointNode: HierarchyPointNode<TreeNodeDatum>) => {
+  centerNode = (hierarchyPointNode: HierarchyPointNode<TreeNodeDatum>, instant: boolean=false) => {
     const { dimensions, orientation, zoom, centeringTransitionDuration } = this.props;
     if (dimensions) {
       const g = select(`.${this.gInstanceRef}`);
@@ -415,9 +418,15 @@ class Tree extends React.Component<TreeProps, TreeState> {
         y = -hierarchyPointNode.y * scale + dimensions.height / 2;
       }
       //@ts-ignore
+      if (instant) {
+        console.log("Instant transition!");
+        g.attr('transform', 'translate(' + x + ',' + y + ')scale(' + scale + ')');
+      }
+      else {
       g.transition()
-        .duration(centeringTransitionDuration)
+        .duration(instant ? 0 : centeringTransitionDuration)
         .attr('transform', 'translate(' + x + ',' + y + ')scale(' + scale + ')');
+      }
       // Sets the viewport to the new center so that it does not jump back to original
       // coordinates when dragged/zoomed
       //@ts-ignore
@@ -432,8 +441,15 @@ class Tree extends React.Component<TreeProps, TreeState> {
    * the initial render of the tree.
    */
   generateTree() {
+    // Empty tree means render nothing!
+    if (!this.state.data) return {
+      nodes: [],
+      links: [],
+    };
+
     const { initialDepth, depthFactor, separation, selectedNode, nodeSize, orientation } = this.props;
     const { isInitialRenderForDataset } = this.state;
+    const { prevSelectedNode, prevNodes } = this.internalState;
     const tree = d3tree<TreeNodeDatum>()
       .nodeSize(orientation === 'horizontal' ? [nodeSize.y, nodeSize.x] : [nodeSize.x, nodeSize.y])
       .separation((a, b) =>
@@ -459,6 +475,25 @@ class Tree extends React.Component<TreeProps, TreeState> {
       });
     }
 
+    // Stop any in-process animations, and reposition the tree so that the previously selected node is in the same location that it was.
+    // This will prevent any weird "snapping" that happens when the tree is reloaded, which is caused when the root node changes.
+    // The root node is always placed at (0,0) so it pushes all the other nodes to new locations if we don't compensate!
+    let instantRecenter = !prevSelectedNode; // We will do an instant recenter if we don't have a selected node already.
+    if (prevSelectedNode && prevNodes) {
+      const fN = prevNodes.find(node=>(node.data.name===prevSelectedNode));
+      const nN = nodes.find(node=>(node.data.name===prevSelectedNode));
+      if (!nN) {
+        // The previously selected node is NOT part of the new tree. So just snap to it!
+        instantRecenter = true;
+      }
+      else if (fN && nN) {
+        if ((fN.x !== nN.x) || (fN.y !== nN.y)) {
+          console.log("Selected node was at (" + fN.x.toString() + ", " + fN.y.toString() + ")");
+          console.log("Selected node now at (" + nN.x.toString() + ", " + nN.y.toString() + ")");
+        }
+      }
+    }
+
     // Center on the "selected" node
     if (selectedNode) {
       nodes.forEach(node => {
@@ -466,12 +501,22 @@ class Tree extends React.Component<TreeProps, TreeState> {
         if (node.data.name === selectedNode) {
           if (node.data?.attributes?.cssClasses) node.data.attributes.cssClasses.push("rd3t-node-selected");
           else node.data.attributes.cssClasses = ["rd3t-node-selected"];
-          this.centerNode(node);
+          this.centerNode(node, instantRecenter);
         }
       });
+
+      this.internalState.prevSelectedNode = selectedNode;
+      this.internalState.prevNodes = nodes;
     }
 
     return { nodes, links };
+  }
+
+  componentWillUnmount() {
+    // Clear out "previous node" info since we are unmounting:
+    this.internalState.prevSelectedNode = null;
+    this.internalState.prevNodes = null;
+    console.log("Unmounted!");
   }
 
   /**
