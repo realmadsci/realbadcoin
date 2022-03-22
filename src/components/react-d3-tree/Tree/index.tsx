@@ -462,8 +462,10 @@ class Tree extends React.Component<TreeProps, TreeState> {
     // Center on the "selected" node
     if (selectedNode) {
       nodes.forEach(node => {
+        if (node.data?.attributes?.cssClasses) node.data.attributes.cssClasses.replace("rd3t-node-selected", "");
         if (node.data.name === selectedNode) {
-          node.data.attributes.cssClasses += " rd3t-node-selected";
+          if (node.data?.attributes?.cssClasses) node.data.attributes.cssClasses += " rd3t-node-selected";
+          else node.data.attributes.cssClasses = "rd3t-node-selected";
           this.centerNode(node);
         }
       });
