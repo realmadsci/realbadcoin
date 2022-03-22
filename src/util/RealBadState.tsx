@@ -495,16 +495,52 @@ export class RealBadCache {
         return chain;
     }
 
+    // Return the common parent of both of these blocks, if such a thing exists.
+    getCommonParent(hash1, hash2) {
+        // Obvious short-circuit option:
+        if (hash1 === hash2) return hash1;
+
+        while (true) {
+            const b1 = this.getBlock(hash1);
+            // This happens when we hit the top of the chain or genesis block without finding a match
+            if (!b1) return null;
+            const h1 = b1.blockHeight;
+
+            const b2 = this.getBlock(hash2);
+            if (!b2) return null;
+            const h2 = b2.blockHeight;
+
+            // Figure out which block is further ahead, and walk it back to be equal
+            const minHeight = Math.min(h1, h2);
+            if (h1 > minHeight) hash1 = this.getChain(hash1, null, 1 + h1 - minHeight)[0];
+            if (h2 > minHeight) hash2 = this.getChain(hash2, null, 1 + h2 - minHeight)[0];
+
+            // See if they match
+            if (hash1 === hash2) return hash1;
+
+            // Grab the new blocks, since we know they aren't the same, and walk up one layer.
+            hash1 = this.getBlock(hash1).prevHash;
+            hash2 = this.getBlock(hash2).prevHash;
+        }
+    }
+
     // Because "confirmations" really applies to the _transactions_ more than the blocks themselves, the number of
     // confirmations of a block is the number of blocks (including itself) after it *in the best chain*.
     // If a block isn't in the best chain, its confirmations are 0! If a block is the head of the main chain, it's confirmations are 1.
     getConfirmations(hash) {
-        // Need a special case for the exact top block, since it will return a 0-length chain.
-        if (hash === this.bestBlockHash) return 1;
+        // Need to find a parent of this hash that is ON the main chain if we aren't.
+        // We DON'T want to walk all the way up the chain every time for blocks that have 0 confirmations!
+        const chainParent = this.getCommonParent(hash, this.bestBlockHash);
 
-        const chain = this.getChain(null, hash);
-        const chainParent = this.getBlock(chain[0])?.prevHash;
-        if (chain.length && (chainParent === hash)) return 1 + chain.length;
+        // If we are ON the main chain, then our common parent is ourself!
+        if (chainParent === hash) {
+            // Get the height of both the top hash and the hash in question.
+            // The confirmation level is then the difference between their blockHeights.
+            // We can do this shortcut becuase we trust the blockHeight claims of blocks on the main chain!
+            const thisBlock = this.getBlock(hash);
+            const topBlock = this.getBlock(this.bestBlockHash);
+            return 1 + (topBlock.blockHeight - thisBlock.blockHeight);
+        }
         else return 0;
     }
 
