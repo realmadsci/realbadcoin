@@ -63,7 +63,7 @@ class TreeView extends React.Component {
                 const sel = this.props.selected;
 
                 // Walk up to N parents above me!
-                const parentChain = await this.props.cache.getChain(sel, null, 15);
+                const parentChain = await this.props.cache.getChain(sel, null, 30);
 
                 // If we get told to update again, abort this one so we can do the newest one!
                 if (this._needToUpdate) break;
@@ -76,7 +76,7 @@ class TreeView extends React.Component {
                 const parent = parentChain[0];
 
                 // Recursively grab children and build a tree
-                const newData = await this._makeTreeFromBlock(parent, 30);
+                const newData = await this._makeTreeFromBlock(parent, 60);
                 if (this._needToUpdate) break;
                 this.setState({
                     data: newData,

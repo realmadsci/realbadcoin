@@ -551,7 +551,7 @@ class Tree extends React.Component<TreeProps, TreeState> {
     // Clear out "previous node" info since we are unmounting:
     this.internalState.prevSelectedNode = null;
     this.internalState.prevNodes = null;
-    console.log("Unmounted!");
+    //console.log("Unmounted!");
   }
 
   /**
