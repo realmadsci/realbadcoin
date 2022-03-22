@@ -418,21 +418,52 @@ class Tree extends React.Component<TreeProps, TreeState> {
         y = -hierarchyPointNode.y * scale + dimensions.height / 2;
       }
       //@ts-ignore
-      if (instant) {
-        console.log("Instant transition!");
-        g.attr('transform', 'translate(' + x + ',' + y + ')scale(' + scale + ')');
-      }
-      else {
       g.transition()
         .duration(instant ? 0 : centeringTransitionDuration)
         .attr('transform', 'translate(' + x + ',' + y + ')scale(' + scale + ')');
-      }
       // Sets the viewport to the new center so that it does not jump back to original
       // coordinates when dragged/zoomed
       //@ts-ignore
       svg.call(d3zoom().transform, zoomIdentity.translate(x, y).scale(zoom));
     }
   };
+
+  nudgePosition = (deltaX: number, deltaY: number)=>{
+    const { dimensions, orientation, zoom, centeringTransitionDuration } = this.props;
+    if (dimensions) {
+      const g = select(`.${this.gInstanceRef}`);
+      const svg = select(`.${this.svgInstanceRef}`);
+      const scale = this.state.d3.scale;
+
+      let transform = g.style('transform');
+      //console.log("Position was " + transform.toString());
+      // The "transform" style returns a matrix() with 6 elements representing the transform.
+      // This is _probably_ not the nicest way to parse this, but :shrug:
+      transform = JSON.parse("[" + transform.replace("matrix(","").replace(")","") + "]");
+      //console.log(transform);
+      let x:number = transform[4];
+      //console.log(x);
+      let y:number = transform[5];
+      //console.log(y);
+
+      // if the orientation is horizontal, calculate the variables inverted (x->y, y->x)
+      if (orientation === 'horizontal') {
+        x += deltaY;
+        y += deltaX;
+      } else {
+        // else, calculate the variables normally (x->x, y->y)
+        x += deltaX;
+        y += deltaY;
+      }
+
+      //@ts-ignore
+      g.transition().duration(0).attr('transform', 'translate(' + x + ',' + y + ')scale(' + scale + ')');
+      // Sets the viewport to the new center so that it does not jump back to original
+      // coordinates when dragged/zoomed
+      //@ts-ignore
+      svg.call(d3zoom().transform, zoomIdentity.translate(x, y).scale(zoom));
+    }
+  }
 
   /**
    * Generates tree elements (`nodes` and `links`) by
@@ -488,8 +519,12 @@ class Tree extends React.Component<TreeProps, TreeState> {
       }
       else if (fN && nN) {
         if ((fN.x !== nN.x) || (fN.y !== nN.y)) {
-          console.log("Selected node was at (" + fN.x.toString() + ", " + fN.y.toString() + ")");
-          console.log("Selected node now at (" + nN.x.toString() + ", " + nN.y.toString() + ")");
+          //console.log("Selected node was at (" + fN.x.toString() + ", " + fN.y.toString() + ")");
+          //console.log("Selected node now at (" + nN.x.toString() + ", " + nN.y.toString() + ")");
+          // Want to apply a "nudge" to the position to adjust for that difference
+          const nudgeX = fN.x - nN.x;
+          const nudgeY = fN.y - nN.y;
+          this.nudgePosition(nudgeX, nudgeY);
         }
       }
     }
