@@ -83,12 +83,6 @@ class App extends React.Component {
       await this.state.cache.restoreCheckpoint(block, state);
       const hash = RealBadBlock.coerce(block).hash;
       await this.cacheHasNewBlock(hash, null);
-
-      // Add the checkpoint as a gap to be fixed whenever we have a peer to talk with
-      this._newGaps.push({
-        hash: hash,
-        source: null,
-      });
     }
   }
 
@@ -97,13 +91,22 @@ class App extends React.Component {
 
     // Whenever we get connected to a new peer, ask for all the blocks they know about!
     console.log("Pestering peer \"" + peer + "\" with requestBlocks");
-    const sh = await this.state.cache.bestBlockHash;
+    const besthash = await this.state.cache.bestBlockHash;
     const msg = JSON.stringify({
       requestBlocks: {
-        have: sh.likelyHash, // NOTE: we don't care if we are using a checkpoint here. In fact, we DEFINITELY want to just use the checkpoint hash for the first fetch!
+        have: besthash, // NOTE: we don't care if we are using a checkpoint here. In fact, we DEFINITELY want to just use the checkpoint hash for the first fetch!
         want: null, // Null means "give me your best chain"
     }});
     this._conn.sendToPeer(peer, msg);
+
+    // If we are on a checkpoint still, then fetch the checkpoint as well!
+    if (await this.state.cache.isCheckpoint) {
+      // Add the checkpoint as a gap to be fixed
+      this._newGaps.push({
+        hash: besthash,
+        source: peer,
+      });
+    }
   }
 
   // Submit a new transaction to be included in future blocks
@@ -275,6 +278,9 @@ class App extends React.Component {
 
         // We added a new block to the cache, so update our UI and search for gaps to fill
         await this.cacheHasNewBlock(block.hash, peer);
+
+        // Pull in the new gaps info and try to make requests to fill it!
+        await this._fixGaps();
       }
     }
 
@@ -354,23 +360,34 @@ class App extends React.Component {
 
       // Get the block a good distance above this "best" block and use it as a checkpoint
       const chain = await this.state.cache.getChain(topHash, null, 100);
-      // If the checkpoint hash has changed, then update it in storage
-      const checkpointHash = chain[0];
-      const checkpointInfo = await this.state.cache.getBlockInfo(checkpointHash);
-      if (checkpointInfo) {
-        sessionStorage.setItem("checkpoint", JSON.stringify({
-          block: RealBadBlock.coerce(checkpointInfo.block),
-          state: RealBadLedgerState.coerce(checkpointInfo.state),
-          hash: checkpointHash,
-          parentHash: checkpointInfo.block.prevHash,
-        }));
+
+      // Grab the first block in the chain that HAS A STATE to use as our checkpoint:
+      for(const checkpointHash of chain) {
+        const checkpointInfo = await this.state.cache.getBlockInfo(checkpointHash);
+        if (checkpointInfo?.state) {
+          // If the checkpoint hash has changed, then update it in storage
+          if (checkpointInfo) {
+            sessionStorage.setItem("checkpoint", JSON.stringify({
+              block: RealBadBlock.coerce(checkpointInfo.block),
+              state: RealBadLedgerState.coerce(checkpointInfo.state),
+              hash: checkpointHash,
+              parentHash: checkpointInfo.block.prevHash,
+            }));
+          }
+          break;
+        }
       }
 
       let accountState = null;
-      let safeHash = (await this.state.cache.getChain(topHash, null, 4))[0];
-      if (safeHash) {
+      let accountHash = null;
+      let safeChain = await this.state.cache.getChain(topHash, null, 4);
+      for(const safeHash of safeChain) {
         const bisafe = await this.state.cache.getBlockInfo(safeHash);
-        accountState = RealBadLedgerState.coerce(bisafe?.state);
+        if (bisafe?.state) {
+          accountHash = safeHash;
+          accountState = RealBadLedgerState.coerce(bisafe.state);
+          break;
+        }
       }
 
       // Automatically jump to the selected state
@@ -378,7 +395,7 @@ class App extends React.Component {
         topHash: topHash,
         topBlock: RealBadBlock.coerce(bi.block),
         topLState: RealBadLedgerState.coerce(bi.state),
-        accountSelected: safeHash,
+        accountSelected: accountHash,
         accountLState: accountState,
       });
     }
