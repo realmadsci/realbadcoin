@@ -537,11 +537,11 @@ class Tree extends React.Component<TreeProps, TreeState> {
           if (node.data?.attributes?.cssClasses) node.data.attributes.cssClasses.push("rd3t-node-selected");
           else node.data.attributes.cssClasses = ["rd3t-node-selected"];
           this.centerNode(node, instantRecenter);
+
+          this.internalState.prevSelectedNode = selectedNode;
+          this.internalState.prevNodes = nodes;
         }
       });
-
-      this.internalState.prevSelectedNode = selectedNode;
-      this.internalState.prevNodes = nodes;
     }
 
     return { nodes, links };
