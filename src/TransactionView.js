@@ -4,114 +4,41 @@ import * as React from 'react';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
+
+import NavigateNextRoundedIcon from '@mui/icons-material/NavigateNextRounded';
 
 import {
     RealBadCoinTransfer,
     RealBadNftMint,
     RealBadNftTransfer,
-    RealBadTransaction,
-    RealBadBlock
 } from './util/RealBadCoin.tsx';
-
-import * as ed from '@noble/ed25519';
-import { bytesToHex, hexToBytes, utf8ToBytes } from '@noble/hashes/utils';
-
-// We need a pubkey/privkey pair for sealing transactions:
-class AccountMock {
-    constructor() {
-        this._privKey = null;
-        this._pubKey = null;
-  
-        // Trigger the initialization to occur the first time anybody asks for anything
-        this._initialized = this._initialize();
-    }
-  
-    async _initialize() {
-        // We don't already have a private key for this browser, so make one:
-        this._privKey = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
-  
-        // Compute and set the public key
-        this._pubKey = await ed.getPublicKey(this._privKey);
-    }
-  
-    async getPubKeyHex() {
-        await this._initialized;
-        return bytesToHex(this._pubKey);
-    }
-  
-    async getPrivKeyHex() {
-        await this._initialized;
-        return this._privKey;
-    }
-  
-    async sign(msg) {
-        await this._initialized;
-        const sig = await ed.sign(msg, this._privKey);
-  
-        // Return the signature:
-        return sig;
-    }
-}
-
-async function makeCoinTransfer() {
-    let a = new AccountMock();
-    let id = await a.getPubKeyHex();
-    let a2 = new AccountMock();
-    let id2 = await a2.getPubKeyHex();
-
-    let t3 = new RealBadTransaction();
-    t3.txData = new RealBadCoinTransfer();
-    t3.txData.destination = id2;
-    t3.txData.amount = 111;
-    t3.transactionFee = 3;
-    t3.sourceNonce = 1;
-    await t3.seal(a);
-    return t3;
-}
-
-async function makeNftMint() {
-    let a = new AccountMock();
-    let id = await a.getPubKeyHex();
-
-    let t3 = new RealBadTransaction();
-    t3.txData = new RealBadNftMint();
-    t3.txData.nftData = {hello: "world"};
-    t3.txData.nftId = t3.txData.hash();
-    t3.transactionFee = 3;
-    t3.sourceNonce = 2;
-    await t3.seal(a);
-    return t3;
-}
-
-async function makeNftTransfer() {
-    let a = new AccountMock();
-    let id = await a.getPubKeyHex();
-    let a2 = new AccountMock();
-    let id2 = await a2.getPubKeyHex();
-
-    let t3 = new RealBadTransaction();
-    t3.txData = new RealBadNftTransfer();
-    t3.txData.destination = id2;
-    t3.txData.nftId = id; // Shrug?
-    t3.txData.nftNonce = 4;
-    t3.transactionFee = 3;
-    t3.sourceNonce = 1;
-    await t3.seal(a);
-    return t3;
-}
 
 class TransactionView extends React.Component {
     constructor(props) {
         super(props);
-
-        this.state = {tx: this.props.tx};
     }
 
-    componentDidMount() {
-        // Generate some random filler if the parent didn't give us a tx:
-        if (!this.state.tx) {
-            makeNftTransfer().then((t)=>this.setState({tx: t}));
+    static renderSmall(tx, clickHandler) {
+        const d = tx.txData;
+        if (d instanceof RealBadCoinTransfer) {
+            return (
+                <Stack direction="row" spacing={2} sx={{p:2}} onClick={clickHandler}>
+                    <Typography noWrap variant="hexblob">{tx.source}</Typography>
+                    <NavigateNextRoundedIcon />
+                    <Typography noWrap variant="hexblob">{d.destination}</Typography>
+                    <Typography whiteSpace="nowrap">{"\u211C " + d.amount.toString()}</Typography>
+                </Stack>
+            );
         }
+        else if (d instanceof RealBadNftMint) {
+            <Typography noWrap>TODO: Implement NFT Mint small view</Typography>
+        }
+        else if (d instanceof RealBadNftTransfer) {
+            <Typography noWrap>TODO: Implement NFT Transfer small view</Typography>
+        }
+        else return null;
     }
 
     static renderTxData(d) {
@@ -209,43 +136,46 @@ class TransactionView extends React.Component {
         signature = null;       // Signature of `txId` using the `source` account.
         */
 
-        if (this.state.tx === undefined) return null;
+        if (this.props.tx === undefined) return null;
+
+        // Show the "preview size" unless it is "expanded"
+        if (!this.props.expanded) return TransactionView.renderSmall(this.props.tx, this.props.onClick);
 
         return (
-            <List component="div" disablePadding>
+            <List component="div" disablePadding onClick={this.props.onClick}>
             <ListItem>
                 <ListItemText
                     primary="Transaction ID"
-                    secondary={this.state.tx.txId}
+                    secondary={this.props.tx.txId}
                     secondaryTypographyProps={{variant: "hexblob"}}
                 />
             </ListItem>
             <ListItem>
                 <ListItemText
                     primary="Transaction Time"
-                    secondary={this.state.tx.timestamp.toLocaleString()}
+                    secondary={this.props.tx.timestamp.toLocaleString()}
                 />
             </ListItem>
             <ListItem>
                 <ListItemText
                     primary="Transaction Fee"
-                    secondary={"\u211C " + this.state.tx.transactionFee.toString()}
+                    secondary={"\u211C " + this.props.tx.transactionFee.toString()}
                 />
             </ListItem>
             <ListItem>
                 <ListItemText
                     primary="Source"
-                    secondary={this.state.tx.source}
+                    secondary={this.props.tx.source}
                     secondaryTypographyProps={{variant: "hexblob"}}
                 />
             </ListItem>
             <ListItem>
                 <ListItemText
                     primary="Source Nonce"
-                    secondary={this.state.tx.sourceNonce}
+                    secondary={this.props.tx.sourceNonce}
                 />
             </ListItem>
-            {TransactionView.renderTxData(this.state.tx.txData)}
+            {TransactionView.renderTxData(this.props.tx.txData)}
             </List>
         );
     }
