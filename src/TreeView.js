@@ -73,10 +73,14 @@ class TreeView extends React.Component {
                     this.setState({data: null});
                     return;
                 }
-                const parent = parentChain[0];
 
-                // Recursively grab children and build a tree
-                const newData = await this._makeTreeFromBlock(parent, 60);
+                let newData = null;
+                // Need to walk up the chain until we find the first block with "state":
+                for (const parent of parentChain) {
+                    // Recursively grab children and build a tree
+                    newData = await this._makeTreeFromBlock(parent, 60);
+                    if (newData) break;
+                }
                 if (this._needToUpdate) break;
                 this.setState({
                     data: newData,
@@ -101,6 +105,9 @@ class TreeView extends React.Component {
         if (await this.props.cache.getConfirmations(hash) > 3) cssClasses.push("block-safe");
         else if (await this.props.cache.getConfirmations(hash)) cssClasses.push("block-accepted");
 
+        // Blocks that are an earlier part of a chain but which don't have state really are a thing!
+        // It happens while fetching blocks above a checkpoint, up until the checkpoint state is verified.
+        if (!bi.state) return null;
         return {
             name: hash,
             attributes: {

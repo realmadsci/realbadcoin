@@ -38,6 +38,11 @@ class CacheWorker {
         );
     }
 
+    // Identify if we are working from a checkpoint or if we have a full chain
+    get isCheckpoint() {
+        return this.#cache.isCheckpoint;
+    }
+
     // Return all the info about one block from the cache
     getBlockInfo(hash) {
         return {
@@ -50,6 +55,10 @@ class CacheWorker {
     // Get a list of blocks (just the blocks, not full info!) matching the list of hashes.
     getBlocks(hashList) {
         return hashList.map((h, i)=>this.#cache.getBlock(h));
+    }
+
+    getCommonParent(hash1, hash2, maxLength=Infinity) {
+        return this.#cache.getCommonParent(hash1, hash2, maxLength);
     }
 
     // Get the list of hashes comprising the chain, starting at `hash` and going

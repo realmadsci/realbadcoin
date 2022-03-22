@@ -334,6 +334,7 @@ export class RealBadCache {
     _txPool = {};               // Pool of un-confirmed transactions that we can try add to a block.
     _recentConfirmedTx = {};    // Pool of recently confirmed transactions so we can avoid repeating them.
     _lastMiningRoot = null;     // This is the last block we attempted to mine on top of.
+    _isCheckpoint = false;      // Are we building from a checkpoint, or have we validated the checkpoint block?
     minDifficulty = 256**2;     // Minimum difficulty level of blocks to allow into our cache.
     genesisDifficulty = 2e6;    // Difficulty of genesis blocks
 
@@ -393,8 +394,16 @@ export class RealBadCache {
                 // Note that updating them might add new ones to the ready list by pulling them from _anticipatedBlocks.
                 // We update those too until we run out.
                 while (this._readyBlocks.length) {
-                    let b = this.getBlock(this._readyBlocks.shift());
-                    let h = b.hash;
+                    let h = this._readyBlocks.shift()
+                    let b = this.getBlock(h);
+
+                    // Check if this block is a checkpoint block
+                    if (this._blocks[h]?.isCheckpoint) {
+                        console.log("Synced up to checkpoint!");
+                        this._isCheckpoint = false;
+                        delete this._blocks[h].isCheckpoint;
+                        continue; // Don't actually update it's state other than removing the checkpoint flag
+                    }
 
                     if (b.blockHeight === 0) {
                         // Genesis block!
@@ -440,11 +449,22 @@ export class RealBadCache {
     // the process of downloading additional blocks in the background.
     restoreCheckpoint(block, state) {
         // Just inject it directly in there and call it our "best":
-        this._bestBlock = block.hash;
-        this._blocks[this._bestBlock] = {
+        const hash = block.hash;
+        this._bestBlock = hash;
+        this._blocks[hash] = {
             block: block,
             state: state,
+            isCheckpoint: true, // Mark this block as the "checkpoint"
         }
+        this._isCheckpoint = true; // Mark the cache as "checkpointed"
+
+        // Add our parent to the _anticipatedBlocks list so we can update our "isCheckpoint" state once we re-compute this block's state.
+        if (!(block.prevHash in this._anticipatedBlocks)) this._anticipatedBlocks[block.prevHash] = [];
+        this._anticipatedBlocks[block.prevHash].push(hash);
+    }
+
+    get isCheckpoint() {
+        return this._isCheckpoint;
     }
 
     // Return hash of the best block that we know about:
@@ -496,11 +516,11 @@ export class RealBadCache {
     }
 
     // Return the common parent of both of these blocks, if such a thing exists.
-    getCommonParent(hash1, hash2) {
+    getCommonParent(hash1, hash2, maxLength=Infinity) {
         // Obvious short-circuit option:
         if (hash1 === hash2) return hash1;
 
-        while (true) {
+        for(let i = 0; i < maxLength; i++) {
             const b1 = this.getBlock(hash1);
             // This happens when we hit the top of the chain or genesis block without finding a match
             if (!b1) return null;
@@ -522,6 +542,7 @@ export class RealBadCache {
             hash1 = this.getBlock(hash1).prevHash;
             hash2 = this.getBlock(hash2).prevHash;
         }
+        return null;
     }
 
     // Because "confirmations" really applies to the _transactions_ more than the blocks themselves, the number of
@@ -530,7 +551,7 @@ export class RealBadCache {
     getConfirmations(hash) {
         // Need to find a parent of this hash that is ON the main chain if we aren't.
         // We DON'T want to walk all the way up the chain every time for blocks that have 0 confirmations!
-        const chainParent = this.getCommonParent(hash, this.bestBlockHash);
+        const chainParent = this.getCommonParent(hash, this.bestBlockHash, 100); // If you haven't hit "main chain" in 100 loops, then you aren't confirmed!
 
         // If we are ON the main chain, then our common parent is ourself!
         if (chainParent === hash) {
@@ -583,11 +604,13 @@ export class RealBadCache {
         if (this._lastMiningRoot !== prevHash) {
             // Need to reshuffle the transaction pools if the mining root is different this time!
 
-            //TODO: Maybe find a more efficient method for this other
-            // than "construct entire chains and compare them"!
-            // For now, we achieve some level of sanity in the search by limiting our history to 1000 blocks.
-            let oldChain = this.getChain(this._lastMiningRoot, null, 1000);
-            let newChain = this.getChain(prevHash, null, 1000);
+            // Find the point at which the branches containing the old and new prevHash split
+            // apart (might be null if they are entirely different trees or are too far apart!)
+            const sharedRoot = this.getCommonParent(this._lastMiningRoot, prevHash, 100);
+
+            // Also include some level of sanity in the search by limiting our history to 100 blocks.
+            let oldChain = this.getChain(this._lastMiningRoot, sharedRoot, 100);
+            let newChain = this.getChain(prevHash, sharedRoot, 100);
 
             // These are "Removed" blocks. All transactions in them should be added to the tx pool
             let removedBlocks = oldChain.filter((b, i)=>!newChain.includes(b));

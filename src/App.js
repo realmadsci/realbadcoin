@@ -81,21 +81,14 @@ class App extends React.Component {
     const state = checkpoint?.state;
     if (useCheckpoint && block && state) {
       await this.state.cache.restoreCheckpoint(block, state);
-      await this.cacheHasNewBlock(block.hash, null);
-    }
-  }
+      const hash = RealBadBlock.coerce(block).hash;
+      await this.cacheHasNewBlock(hash, null);
 
-  // Return {isCheckpoint, likelyHash} object.
-  async _getLikelySharedHash() {
-    let bestChain = await this.state.cache.getChain(await this.state.cache.bestBlockHash);
-    let bestBlockRoot = (await this.state.cache.getBlockInfo((bestChain)[0]))?.block;
-    // NOTE: We tell the other side that our block we "already have" is way earlier than our true "best block" in case
-    //       the other side doesn't share the same newest set of hashes with us. 40 should be _plenty_ far back, but if
-    //       we've been disconnected and making our own blocks for 10+ minutes then we'll probably end up with a full fetch,
-    //       but maybe that's a good thing???
-    return {
-      isCheckpoint: (bestBlockRoot?.blockHeight !== 0),
-      likelyHash: bestChain[Math.max(0, bestChain.length-1-40)],
+      // Add the checkpoint as a gap to be fixed whenever we have a peer to talk with
+      this._newGaps.push({
+        hash: hash,
+        source: null,
+      });
     }
   }
 
@@ -104,7 +97,7 @@ class App extends React.Component {
 
     // Whenever we get connected to a new peer, ask for all the blocks they know about!
     console.log("Pestering peer \"" + peer + "\" with requestBlocks");
-    const sh = await this._getLikelySharedHash();
+    const sh = await this.state.cache.bestBlockHash;
     const msg = JSON.stringify({
       requestBlocks: {
         have: sh.likelyHash, // NOTE: we don't care if we are using a checkpoint here. In fact, we DEFINITELY want to just use the checkpoint hash for the first fetch!
@@ -190,6 +183,9 @@ class App extends React.Component {
         let attempts = this._gapsToFix[gap].attempts;
 
         //console.log("Checking gap above " + gap + " from " + source);
+        const hasChainParent = (!await this.state.cache.isCheckpoint) && (await this.state.cache.getCommonParent(gap, await this.state.cache.bestBlockHash, 100));
+        if (hasChainParent) continue; // Not a gap if it has a parent on the main chain!
+
         const oldestParent = (await this.state.cache.getBlockInfo((await this.state.cache.getChain(gap))[0])).block;
         const oldestParentHash = RealBadBlock.coerce(oldestParent).hash;
         //console.log(oldestParent);
@@ -212,11 +208,12 @@ class App extends React.Component {
           if (attempts > 5) continue; // Throw the "gap" away if we've tried enough times already!
 
           // Send a request to try and get the gap filled!
-          const sh = await this._getLikelySharedHash();
+          // Only send our "root hash" if we have a full chain already (i.e. we aren't branched from a checkpoint).
+          const have = (await this.state.cache.isCheckpoint) ? null : (await this.state.cache.bestBlockHash);
           console.log("Requesting gap-filler blocks for " + oldestParent.blockHeight + " from peer \"" + source + "\" by fetching " + oldestParent.prevHash);
           const req = JSON.stringify({
             requestBlocks: {
-              have: sh.isCheckpoint ? null : sh.likelyHash, // Only send our "root hash" if we have a full chain already (i.e. we aren't branched from a checkpoint).
+              have: have,
               want: oldestParent.prevHash,
             }
           });
@@ -323,18 +320,28 @@ class App extends React.Component {
     // If the new block still needs a parent and we know where it came from, then add it to
     // the "Gap fix queue" so we can try and fetch its parents:
     if (source && (source !== this._conn.myId)) {
-      let oldestParent = (await this.state.cache.getBlockInfo((await this.state.cache.getChain(hash))[0])).block;
-      if (oldestParent.blockHeight !== 0) {
-        // NOTE: We have to put a block that we KNOW about in there, so we can pull it out for checking later.
-        // We also want to always pick the same one for multiple "newBlock" events on the same chain so that
-        // we can avoid redundantly fetching the same data.
-        const gapHash = RealBadBlock.coerce(oldestParent).hash;
-        this._newGaps.push({
-          hash: gapHash,
-          source: source,
-        });
-        // Pull in the new gaps info and try to make requests to fill it!
-        await this._fixGaps();
+      // Decide if this block is connected to the main chain.
+      // If it is, then it isn't gapped! This is worth the "extra effort" in the gapped case,
+      // because the non-gapped case is more common and a full chain walk is COSTLY.
+      const hasChainParent = (!await this.state.cache.isCheckpoint) && (await this.state.cache.getCommonParent(hash, await this.state.cache.bestBlockHash, 100));
+      if (!hasChainParent) {
+        // Grab the oldest parent by fetching its whole chain. This is only slow if the block is high up on
+        // a very long chain that isn't connected to the main chain. This can happen a few times while
+        // we are downloading an incomplete chain (until the gap is sealed and the getCommonParent() above will
+        // detect that we are attached to the main chain).
+        let oldestParent = (await this.state.cache.getBlockInfo((await this.state.cache.getChain(hash))[0])).block;
+        if (oldestParent.blockHeight !== 0) {
+          // NOTE: We have to put a block that we KNOW about in there, so we can pull it out for checking later.
+          // We also want to always pick the same one for multiple "newBlock" events on the same chain so that
+          // we can avoid redundantly fetching the same data.
+          const gapHash = RealBadBlock.coerce(oldestParent).hash;
+          this._newGaps.push({
+            hash: gapHash,
+            source: source,
+          });
+          // Pull in the new gaps info and try to make requests to fill it!
+          await this._fixGaps();
+        }
       }
     }
 
