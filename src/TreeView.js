@@ -111,7 +111,7 @@ class TreeView extends React.Component {
     }
 
     componentDidUpdate(prevProps, prevState) {
-        if ((!this.state.data) ||
+        if ((!this.state.data && !this._alreadyUpdating) ||
             (this.props.selected !== prevProps.selected) ||
             (this.props.newBlockCounter !== prevProps.newBlockCounter)
         ) {
