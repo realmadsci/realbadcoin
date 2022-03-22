@@ -97,9 +97,9 @@ class TreeView extends React.Component {
 
     async _makeTreeFromBlock(hash, depth) {
         const bi = await this.props.cache.getBlockInfo(hash);
-        let cssClasses = "";
-        if (await this.props.cache.getConfirmations(hash) > 3) cssClasses += " block-safe";
-        else if (await this.props.cache.getConfirmations(hash)) cssClasses += " block-accepted";
+        let cssClasses = [];
+        if (await this.props.cache.getConfirmations(hash) > 3) cssClasses.push("block-safe");
+        else if (await this.props.cache.getConfirmations(hash)) cssClasses.push("block-accepted");
 
         return {
             name: hash,
