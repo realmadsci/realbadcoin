@@ -28,7 +28,7 @@ class TreeView extends React.Component {
         // enableFollow = callback when the "auto sync" button is clicked
 
         this.state = {
-            data: null,
+            data: [],
             height: 100,
             width: 100,
         };
@@ -70,7 +70,7 @@ class TreeView extends React.Component {
 
                 // If there _is_ no chain returned, then this block is invalid!
                 if (parentChain.length === 0) {
-                    this.setState({data: null});
+                    this.setState({data: []});
                     return;
                 }
 
@@ -81,9 +81,9 @@ class TreeView extends React.Component {
                     newData = await this._makeTreeFromBlock(parent, 60);
                     if (newData) break;
                 }
-                if (this._needToUpdate) break;
+                if (this._needToUpdate || !newData) break;
                 this.setState({
-                    data: newData,
+                    data: [newData],
                 });
                 break;
             }
@@ -107,14 +107,23 @@ class TreeView extends React.Component {
 
         // Blocks that are an earlier part of a chain but which don't have state really are a thing!
         // It happens while fetching blocks above a checkpoint, up until the checkpoint state is verified.
-        if (!bi.state) return null;
+        if (!bi?.state) return null;
+
+        let children = undefined;
+        if ((depth > 1) && bi.state.children.length) {
+            // Filter out children blocks that don't have a state. It's rare, but can happen - especially right after a checkpoint!
+            let allChildren = await Promise.all(bi.state.children.map(async h=>this._makeTreeFromBlock(h, depth-1)));
+            allChildren = allChildren.filter(c=>c); // Ditch all the non-null options
+            if (allChildren.length) children = allChildren;
+        }
+
         return {
             name: hash,
             attributes: {
                 cssClasses: cssClasses,
             },
-            children: (depth > 1) && bi.state.children.length ? await Promise.all(bi.state.children.map(async h=>this._makeTreeFromBlock(h, depth-1))) : undefined,
-        }
+            children: children,
+        };
     }
 
     componentDidUpdate(prevProps, prevState) {

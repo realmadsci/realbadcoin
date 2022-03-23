@@ -197,7 +197,9 @@ class Tree extends React.Component<TreeProps, TreeState> {
    * @static
    */
   static assignInternalProperties(data: RawNodeDatum[], currentDepth: number = 0): TreeNodeDatum[] {
-    if (!data) return null;
+    if (!data?.length) {
+      return [];
+    }
     // Wrap the root node into an array for recursive transformations if it wasn't in one already.
     const d = Array.isArray(data) ? data : [data];
     return d.map(n => {
@@ -436,6 +438,7 @@ class Tree extends React.Component<TreeProps, TreeState> {
       const scale = this.state.d3.scale;
 
       let transform = g.style('transform');
+      if (transform === "none") return; // Firefox doesn't return the CSS values, so we at least need to end safely!
       //console.log("Position was " + transform.toString());
       // The "transform" style returns a matrix() with 6 elements representing the transform.
       // This is _probably_ not the nicest way to parse this, but :shrug:
@@ -473,10 +476,12 @@ class Tree extends React.Component<TreeProps, TreeState> {
    */
   generateTree() {
     // Empty tree means render nothing!
-    if (!this.state.data) return {
-      nodes: [],
-      links: [],
-    };
+    if (!(this.state.data?.length)) {
+      return {
+        nodes: [],
+        links: [],
+      };
+    }
 
     const { initialDepth, depthFactor, separation, selectedNode, nodeSize, orientation } = this.props;
     const { isInitialRenderForDataset } = this.state;
