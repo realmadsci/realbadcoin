@@ -20,11 +20,11 @@ class TransactionView extends React.Component {
         super(props);
     }
 
-    static renderSmall(tx, clickHandler) {
+    static renderSmall(tx) {
         const d = tx.txData;
         if (d instanceof RealBadCoinTransfer) {
             return (
-                <Stack direction="row" spacing={2} sx={{p:2}} onClick={clickHandler}>
+                <Stack direction="row" spacing={1} sx={{width: 200, flexGrow: 1}}>
                     <Typography noWrap variant="hexblob">{tx.source}</Typography>
                     <NavigateNextRoundedIcon />
                     <Typography noWrap variant="hexblob">{d.destination}</Typography>
@@ -139,10 +139,10 @@ class TransactionView extends React.Component {
         if (this.props.tx === undefined) return null;
 
         // Show the "preview size" unless it is "expanded"
-        if (!this.props.expanded) return TransactionView.renderSmall(this.props.tx, this.props.onClick);
+        if (!this.props.expanded) return TransactionView.renderSmall(this.props.tx);
 
         return (
-            <List component="div" disablePadding onClick={this.props.onClick}>
+            <List component="div" disablePadding>
             <ListItem>
                 <ListItemText
                     primary="Transaction ID"
