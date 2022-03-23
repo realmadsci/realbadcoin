@@ -662,7 +662,8 @@ export class RealBadCache {
         b.rewardDestination = destination;
         // Set the block's timestamp to at least _slightly_ ahead of the last block so that we
         // don't allow timestamps to go backward!
-        b.timestamp = new Date(Number(lastBlock?.timestamp ?? Date.now()) + 1);
+        const minTimestampMs = Number(lastBlock?.timestamp ?? Date.now()) + 1;
+        b.timestamp = new Date(Math.max(minTimestampMs, Date.now()));
 
         // Try and add as many transactions to the block as will create a valid state
         let s = lastBlockState.clone();
@@ -670,6 +671,12 @@ export class RealBadCache {
         for (const txId in this._txPool) {
             poolCopy.push(txId);
         }
+
+        // Special case to modify the "state" that we are trying transactions on:
+        // We want to accept transactions that are older than "this" block but we can't
+        // use "applyBlock" here because it would allow a miner to spend the reward in the same block.
+        // So we apply _only_ the "timestamp" to the state.
+        s.lastBlockTimestamp = b.timestamp;
 
         // Transactions only "work" in certain orders, so try our best to find that order.
         // We're going to loop until we don't get any new valid transactions
