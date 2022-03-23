@@ -437,16 +437,15 @@ class Tree extends React.Component<TreeProps, TreeState> {
       const svg = select(`.${this.svgInstanceRef}`);
       const scale = this.state.d3.scale;
 
-      let transform = g.style('transform');
-      if (transform === "none") return; // Firefox doesn't return the CSS values, so we at least need to end safely!
+      let transform = g.attr("transform");
       //console.log("Position was " + transform.toString());
       // The "transform" style returns a matrix() with 6 elements representing the transform.
       // This is _probably_ not the nicest way to parse this, but :shrug:
-      transform = JSON.parse("[" + transform.replace("matrix(","").replace(")","") + "]");
+      transform = JSON.parse("[" + transform.replace("translate(","").replace(")","") + "]");
       //console.log(transform);
-      let x:number = transform[4];
+      let x:number = transform[0];
       //console.log(x);
-      let y:number = transform[5];
+      let y:number = transform[1];
       //console.log(y);
 
       // if the orientation is horizontal, calculate the variables inverted (x->y, y->x)
