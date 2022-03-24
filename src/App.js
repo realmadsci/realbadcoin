@@ -18,6 +18,7 @@ import {
   AccountView,
 } from './AccountView.js';
 import { ConnectionManager, PeerApp } from './ConnectionManager';
+import BalanceSummary from './BalanceSummary.js';
 import BlockView from './BlockView';
 import TreeView from './TreeView';
 import HashDemo from './HashDemo';
@@ -614,7 +615,10 @@ class App extends React.Component {
               />
             </Paper>
             <Paper elevation={4}>
-              <BlockView hash={this.state.tvSelected} block={this.state.tvBlock} lstate={this.state.tvLState} />
+              <BlockView hash={this.state.tvSelected} block={this.state.tvBlock} />
+            </Paper>
+            <Paper elevation={4}>
+              <BalanceSummary lstate={this.state.tvLState} />
             </Paper>
           </Box>
         </TabPanel>
