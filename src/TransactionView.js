@@ -24,7 +24,12 @@ class TransactionView extends React.Component {
         const d = tx.txData;
         if (d instanceof RealBadCoinTransfer) {
             return (
-                <Stack direction="row" spacing={1} sx={{width: 200, flexGrow: 1}}>
+                <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{width: 200, flexGrow: 1}}
+                    justifyContent="space-between"
+                >
                     <Typography noWrap variant="hexblob">{tx.source}</Typography>
                     <NavigateNextRoundedIcon />
                     <Typography noWrap variant="hexblob">{d.destination}</Typography>
