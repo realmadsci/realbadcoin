@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import Box from '@mui/material/Box';
+import Fab from '@mui/material/Fab';
 import Paper from '@mui/material/Paper';
 import Tab from '@mui/material/Tab';
 import TabContext from '@mui/lab/TabContext';
@@ -10,7 +11,7 @@ import TabPanel from '@mui/lab/TabPanel';
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
 import PrecisionManufacturingRoundedIcon from '@mui/icons-material/PrecisionManufacturingRounded';
-
+import SendRoundedIcon from '@mui/icons-material/SendRounded';
 
 import {
   AccountIdentity,
@@ -19,8 +20,8 @@ import {
 import { ConnectionManager, PeerApp } from './ConnectionManager';
 import BlockView from './BlockView';
 import TreeView from './TreeView';
-import CoinTransfer from './CoinTransfer';
 import HashDemo from './HashDemo';
+import TransactionDialog from './TransactionDialog';
 
 // For the MineWorker:
 import * as Comlink from 'comlink';
@@ -42,6 +43,7 @@ class App extends React.Component {
       privKeyHex: null,
       pubKeyHex: null,
       activeTab: "1",
+      txDialogOpen: false,
       tvSelected: null,
       tvBlock: null,
       tvLState: null,
@@ -510,6 +512,10 @@ class App extends React.Component {
     this._conn.disconnectFromServer();
   }
 
+  createTransaction() {
+    console.log("Clicked FAB");
+  }
+
   render() {
     return (
       <TabContext value={this.state.activeTab}>
@@ -538,9 +544,33 @@ class App extends React.Component {
             <Paper elevation={4}>
               <PeerApp conn={this._conn} />
             </Paper>
-            <Paper elevation={4}>
-              <CoinTransfer id={this._id} submit={tx=>this.submitTransaction(tx)} lstate={this.state.accountLState} />
-            </Paper>
+            <Fab
+              aria-label="Send Transaction"
+              color="primary"
+              onClick={()=>{
+                this.setState({
+                  txDialogOpen: true,
+                });
+              }}
+              sx={{
+                  position: "fixed",
+                  bottom: 16,
+                  right: 16,
+              }}
+            >
+              <SendRoundedIcon />
+            </Fab>
+            <TransactionDialog
+              open={this.state.txDialogOpen}
+              onClose={()=>{
+                this.setState({
+                  txDialogOpen: false,
+                });
+              }}
+              id={this._id}
+              sendTx={tx=>this.submitTransaction(tx)}
+              lstate={this.state.accountLState}
+            />
           </Box>
         </TabPanel>
         <TabPanel value="2" sx={{p: 0}}>
