@@ -333,6 +333,7 @@ export class RealBadCache {
     _bestBlock = null;          // Hash of the top-scoring block (i.e. the one with the deepest block chain "strength")
     _txPool = {};               // Pool of un-confirmed transactions that we can try add to a block.
     _recentConfirmedTx = {};    // Pool of recently confirmed transactions so we can avoid repeating them.
+    _txToBlocks = {};           // Pool of transactions with list of blocks that they are in (yes, a Tx can be in more than one block, but only one per chain!)
     _lastMiningRoot = null;     // This is the last block we attempted to mine on top of.
     _isCheckpoint = false;      // Are we building from a checkpoint, or have we validated the checkpoint block?
     minDifficulty = 256**2;     // Minimum difficulty level of blocks to allow into our cache.
@@ -414,6 +415,12 @@ export class RealBadCache {
                         // The new state might be bad if this block is bad.
                         this._blocks[h].state = this._blocks[b.prevHash].state.applyBlock(b);
                     }
+
+                    // Add back-links for all transactions in the block so we can look up every block in which a transaction is included:
+                    b.transactions.forEach(tx=>{
+                        if (!(tx in this._txToBlocks)) this._txToBlocks[tx] = [];
+                        this._txToBlocks[tx].push(h);
+                    });
 
                     // Now that we updated a block, see if this lets us update any others, which will have us repeat the loop again.
                     if (h in this._anticipatedBlocks) {
@@ -563,6 +570,12 @@ export class RealBadCache {
             return 1 + (topBlock.blockHeight - thisBlock.blockHeight);
         }
         else return 0;
+    }
+
+    getBlocksWithTransaction(txid) {
+        if (txid in this._txToBlocks) {
+            return this._txToBlocks[txid];
+        } else return [];
     }
 
     // Validate and possibly add a transaction into the memory pool.

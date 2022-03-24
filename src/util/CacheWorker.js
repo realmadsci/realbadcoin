@@ -86,6 +86,10 @@ class CacheWorker {
         return await this.#cache.addTransaction(tx);
     }
 
+    getBlocksWithTransaction(txid) {
+        return this.#cache.getBlocksWithTransaction(txid);
+    }
+
     makeMineableBlock(reward, destination) {
         return this.#cache.makeMineableBlock(reward, destination);
     }
