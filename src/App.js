@@ -113,6 +113,8 @@ class App extends React.Component {
 
   // Submit a new transaction to be included in future blocks
   async submitTransaction(tx) {
+    console.log("Submitting! tx=" + JSON.stringify(tx));
+
     // Just fake it as if we "received" it from ourselves and then we'll rebroadcast it
     await this.handlePeerData(this._conn.myId, JSON.stringify({
       newTx: tx,

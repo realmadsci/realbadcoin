@@ -121,7 +121,6 @@ function CoinTransferForm(props) {
         tx.sourceNonce = nextNonce;
         await tx.seal(id);
 
-        console.log("Submitting! tx=" + JSON.stringify(tx));
         if (await tx.isValid()) {
             // TODO: Maybe use tryTransaction() to see if this transaction would "take" as well???
             sendTx(tx);
@@ -219,8 +218,8 @@ export default function TransactionDialog(props) {
         onClose();
     };
 
-    const handleSendTx = () => {
-        sendTx();
+    const handleSendTx = (tx) => {
+        sendTx(tx);
         onClose();
     };
 
