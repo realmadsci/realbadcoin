@@ -98,7 +98,10 @@ export class ConnectionManager {
         this.myId = sessionStorage.getItem("peer_id") || generateSlug(2).replace("-", "_");
         this.peerHistory = JSON.parse(sessionStorage.getItem("peer_history") || "[]");
         this.server = new Peer(this.myId, {
-            //secure: true,
+            host: 'coinpeers.realmadsci.com',
+            port: 8080,
+            path: '/',
+            secure: true,
             //debug: 3,
             config: {
                 'iceServers': [
