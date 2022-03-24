@@ -439,7 +439,7 @@ class App extends React.Component {
       // Get a new mineable block from the cache, which will include up-to-date list of transactions, etc.
       let unsealed = RealBadBlock.coerce(await this.state.cache.makeMineableBlock(reward, destination));
       unsealed.nonce = Math.round(Math.random() * 2**32);
-      console.log("Set up to mine block: " + JSON.stringify(unsealed));
+      //console.log("Set up to mine block: " + JSON.stringify(unsealed));
       this.setState({
         miningBlock: unsealed,
       });
