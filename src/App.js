@@ -71,10 +71,11 @@ class App extends React.Component {
   }
 
   async _initialize() {
+    const myAccount = await this._id.getPubKeyHex()
     this.setState({
-      cache: await new this._CacheWorkerFactory(),
+      cache: await new this._CacheWorkerFactory(myAccount),
       privKeyHex: await this._id.getPrivKeyHex(),
-      pubKeyHex: await this._id.getPubKeyHex(),
+      pubKeyHex: myAccount,
     });
 
     // Restore the checkpoint if we have one

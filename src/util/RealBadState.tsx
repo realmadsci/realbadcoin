@@ -107,6 +107,14 @@ export class RealBadLedgerState {
     // NOTE: This property is not inherited when cloning into a child block!
     children = [];
 
+    // Tracked account and account tracking info
+    trackedAccount = null;
+
+    // Ledger entries for the tracked account
+    // This will contain every event that changed the balance for the tracked account.
+    // Format is {txId: transaction id, delta: change for myself} or {block: block hash, delta: change for myself}
+    accountLedger = [];
+
     // Can assign the genesis block difficulty in the constructor
     constructor(genesisDifficulty = 2e6) {
         this.nextBlockDifficulty = genesisDifficulty;
@@ -123,6 +131,8 @@ export class RealBadLedgerState {
         totalDifficulty,
         errors,
         children,
+        trackedAccount,
+        accountLedger,
     }) {
         let r = new RealBadLedgerState();
         Object.keys(accounts).forEach(k=>{
@@ -149,6 +159,8 @@ export class RealBadLedgerState {
             }
         });
         r.children = children;
+        r.trackedAccount = trackedAccount;
+        r.accountLedger = Array.from(accountLedger);
         return r;
     }
 
@@ -165,6 +177,8 @@ export class RealBadLedgerState {
             totalDifficulty: this.totalDifficulty.toString(),
             errors: this.errors,
             children: this.children,
+            trackedAccount: this.trackedAccount,
+            accountLedger: this.accountLedger,
         };
     }
 
@@ -186,13 +200,20 @@ export class RealBadLedgerState {
             if (t.txData.amount + t.transactionFee > this.accounts[t.source].balance) throw new RealBadInvalidTransaction("Insufficient balance", t, this.lastBlockHash);
 
             // Consume the money spent from this account:
+            let txDelta = 0;
             this.accounts[t.source].nonce++;
             this.accounts[t.source].balance -= t.txData.amount + t.transactionFee;
+            if (this.trackedAccount === t.source) txDelta -= t.txData.amount + t.transactionFee;
 
             // Give the money to the other accounts, creating them if needed:
             this.transactionFees += t.transactionFee;
             if (!(t.txData.destination in this.accounts)) this.accounts[t.txData.destination] = new RealBadAccountState();
             this.accounts[t.txData.destination].balance += t.txData.amount;
+            if (this.trackedAccount === t.txData.destination) txDelta += t.txData.amount;
+
+            if ((this.trackedAccount === t.source) || (this.trackedAccount === t.txData.destination)) {
+                this.accountLedger.push({txId: t.txId, delta: txDelta});
+            }
         }
         else if (t.txData instanceof RealBadNftMint) {
             // See if the NFT already exists
@@ -210,6 +231,7 @@ export class RealBadLedgerState {
                 // Consume the money spent from this account and increment the nonce:
                 this.accounts[t.source].nonce++;
                 this.accounts[t.source].balance -= t.transactionFee;
+                if (this.trackedAccount === t.source) this.accountLedger.push({txId: t.txId, delta: -t.transactionFee});
 
                 // Accept the transaction fee:
                 this.transactionFees += t.transactionFee;
@@ -239,6 +261,7 @@ export class RealBadLedgerState {
                 // Consume the money spent from this account and increment the nonce:
                 this.accounts[t.source].nonce++;
                 this.accounts[t.source].balance -= t.transactionFee;
+                if (this.trackedAccount === t.source) this.accountLedger.push({txId: t.txId, delta: -t.transactionFee});
 
                 // Accept the transaction fee:
                 this.transactionFees += t.transactionFee;
@@ -314,6 +337,7 @@ export class RealBadLedgerState {
         // If successful, pay the mining rewards, including the sum of transactionFees from all transactions.
         if (!(block.rewardDestination in s.accounts)) s.accounts[block.rewardDestination] = new RealBadAccountState();
         s.accounts[block.rewardDestination].balance += block.miningReward + s.transactionFees;
+        if (s.trackedAccount === block.rewardDestination) s.accountLedger.push({block: hash, delta: block.miningReward + s.transactionFees});
 
         // Clear out transaction fees now that they are claimed
         s.transactionFees = 0;
@@ -338,6 +362,11 @@ export class RealBadCache {
     _isCheckpoint = false;      // Are we building from a checkpoint, or have we validated the checkpoint block?
     minDifficulty = 256**2;     // Minimum difficulty level of blocks to allow into our cache.
     genesisDifficulty = 2e6;    // Difficulty of genesis blocks
+    myAccount = null;           // What account is being used for state tracking ("Tx History")
+
+    constructor(myAccount) {
+        this.myAccount = myAccount;
+    }
 
     // Only accept good RealBadBlocks into our cache!
     async addBlock(block, source, minDifficulty=this.minDifficulty) {
@@ -408,7 +437,9 @@ export class RealBadCache {
 
                     if (b.blockHeight === 0) {
                         // Genesis block!
-                        this._blocks[h].state = (new RealBadLedgerState(this.genesisDifficulty)).applyBlock(b);
+                        const blankState = new RealBadLedgerState(this.genesisDifficulty);
+                        blankState.trackedAccount = this.myAccount; // Track my account for this tree of ledger states!
+                        this._blocks[h].state = blankState.applyBlock(b);
                     }
                     // ASSUMPTION: Unless this is a genesis block, if it got into _readyBlocks then it's prevHash and state *is available* in our block cache!
                     else {
@@ -572,9 +603,9 @@ export class RealBadCache {
         else return 0;
     }
 
-    getBlocksWithTransaction(txid) {
-        if (txid in this._txToBlocks) {
-            return this._txToBlocks[txid];
+    getBlocksWithTransaction(txId) {
+        if (txId in this._txToBlocks) {
+            return this._txToBlocks[txId];
         } else return [];
     }
 

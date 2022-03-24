@@ -13,7 +13,11 @@ import {
 } from './RealBadState.tsx';
 
 class CacheWorker {
-    #cache = new RealBadCache();
+    #cache;
+
+    constructor(myAccount) {
+        this.#cache = new RealBadCache(myAccount);
+    }
 
     // Validate and possibly add a block to the cache
     async addBlock(block, source) {
@@ -86,8 +90,8 @@ class CacheWorker {
         return await this.#cache.addTransaction(tx);
     }
 
-    getBlocksWithTransaction(txid) {
-        return this.#cache.getBlocksWithTransaction(txid);
+    getBlocksWithTransaction(txId) {
+        return this.#cache.getBlocksWithTransaction(txId);
     }
 
     makeMineableBlock(reward, destination) {
