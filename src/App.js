@@ -13,13 +13,14 @@ import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
 import PrecisionManufacturingRoundedIcon from '@mui/icons-material/PrecisionManufacturingRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 
+import AccountLedger from './AccountLedger.js';
 import {
   AccountIdentity,
   AccountView,
 } from './AccountView.js';
-import { ConnectionManager, PeerApp } from './ConnectionManager';
 import BalanceSummary from './BalanceSummary.js';
 import BlockView from './BlockView';
+import { ConnectionManager, PeerApp } from './ConnectionManager';
 import TreeView from './TreeView';
 import HashDemo from './HashDemo';
 import TransactionDialog from './TransactionDialog';
@@ -547,6 +548,21 @@ class App extends React.Component {
             </Paper>
             <Paper elevation={4}>
               <PeerApp conn={this._conn} />
+            </Paper>
+            <Paper elevation={4}>
+              <AccountLedger
+                cache={this.state.cache}
+                lstate={this.state.accountLState}
+                onClick={block=>{
+                  //console.log("Clicked on " + block);
+                  // Jump to the block on the "blockchain" view:
+                  this.setState({
+                    tvFollow: false,
+                    tvSelected: block,
+                    activeTab: "3",
+                  });
+                }}
+              />
             </Paper>
             <Fab
               aria-label="Send Transaction"

@@ -449,8 +449,9 @@ export class RealBadCache {
 
                     // Add back-links for all transactions in the block so we can look up every block in which a transaction is included:
                     b.transactions.forEach(tx=>{
-                        if (!(tx in this._txToBlocks)) this._txToBlocks[tx] = [];
-                        this._txToBlocks[tx].push(h);
+                        const id = tx.txId;
+                        if (!(id in this._txToBlocks)) this._txToBlocks[id] = [];
+                        this._txToBlocks[id].push(h);
                     });
 
                     // Now that we updated a block, see if this lets us update any others, which will have us repeat the loop again.
