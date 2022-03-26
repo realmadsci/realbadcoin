@@ -173,7 +173,7 @@ export function AccountView(props) {
                     <CatchingPokemonRoundedIcon />
                 </ListItemIcon>
                 <ListItemText
-                    primary="NFTs Owned"
+                    primary="NFTs"
                     secondary={nfts.length}
                 />
                 <IconButton
