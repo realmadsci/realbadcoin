@@ -399,6 +399,7 @@ export class RealBadCache {
     minDifficulty = 256**2;     // Minimum difficulty level of blocks to allow into our cache.
     genesisDifficulty = 2e6;    // Difficulty of genesis blocks
     myAccount = null;           // What account is being used for state tracking ("Tx History")
+    txIdToReject = null;        // A transaction to reject so we can try and delete it from the block chain
 
     constructor(myAccount) {
         this.myAccount = myAccount;
@@ -480,6 +481,11 @@ export class RealBadCache {
                     else {
                         // The new state might be bad if this block is bad.
                         this._blocks[h].state = this._blocks[b.prevHash].state.applyBlock(b);
+                    }
+
+                    // If our "banned txId" is in the block, mark it as an error so we reject the whole remaining chain of blocks!
+                    if (this.txIdToReject && (block.transactions.find(tx=>(tx.txId === this.txIdToReject)))) {
+                        this._blocks[h].state.errors.push(new RealBadInvalidBlock("Block contains banned transaction!", h));
                     }
 
                     // Add back-links for all transactions in the block so we can look up every block in which a transaction is included:

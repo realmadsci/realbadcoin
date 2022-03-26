@@ -100,6 +100,24 @@ class CacheWorker {
     makeMineableBlock(reward, destination) {
         return this.#cache.makeMineableBlock(reward, destination);
     }
+
+    // Reject a transaction so you can attempt to undo it.
+    // This will replace the cache with a new copy and re-compute all the state,
+    // rejecting this transaction _every time_ it appears.
+    async cancelTransaction(txIdToReject = null) {
+        // Take a ref to the old cache so we can copy everything out of it
+        const oldCache = this.#cache;
+
+        // Make a new cache copy and tell it to reject the transaction in question
+        this.#cache = new RealBadCache(oldCache.myAccount);
+        this.#cache.txIdToReject = txIdToReject;
+
+        // Transfer the old blockchain into the new cache
+        const oldBlocks = oldCache.getChain().map(h=>this.#cache.getBlock(h));
+        for(const b of oldBlocks) {
+            await this.#cache.addBlock(b);
+        }
+    }
 }
 
 Comlink.expose(CacheWorker);
