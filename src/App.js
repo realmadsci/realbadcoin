@@ -287,7 +287,6 @@ class App extends React.Component {
   }
 
   _addBlocks(blocks, peer) {
-    // NOTE: For now, we don't really care about tracking the "source" for blocks that arrive in bulk.
     this._blockBacklog.push({
       blocks: blocks,
       source: peer,

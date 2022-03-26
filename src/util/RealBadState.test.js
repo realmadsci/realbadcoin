@@ -326,7 +326,7 @@ test('May the best chain win', async ()=>{
         expect(await b.isValid(difficulty1)).toBe(true);
 
         // Add it to our cache
-        await c.addBlock(b, null, difficulty1);
+        await c.addBlock(b, difficulty1);
 
         prevHash = b.hash;
         prevHeight = b.blockHeight;
@@ -400,7 +400,7 @@ test('Insert all blocks backwards still processes correctly', async ()=>{
     c.genesisDifficulty = 0; // Just ignore difficulty target!
     await asyncForEach(l.reverse(), async b=>{
         expect(c.bestBlockHash).toBe(null);
-        await c.addBlock(b, null, difficulty);
+        await c.addBlock(b, difficulty);
     });
     l.reverse(); // Flip it back forward.
     expect(c.bestBlockHash).toBe(l[8].hash);
@@ -408,12 +408,12 @@ test('Insert all blocks backwards still processes correctly', async ()=>{
     // Dump the list into the cache in *almost* reverse order
     let c2 = new RealBadCache();
     c2.genesisDifficulty = 0; // Just ignore difficulty target!
-    await c2.addBlock(l[0], null, difficulty);
+    await c2.addBlock(l[0], difficulty);
     expect(c2.bestBlockHash).toBe(l[0].hash);
-    await c2.addBlock(l[1], null, difficulty);
+    await c2.addBlock(l[1], difficulty);
     await asyncForEach(l.slice(2).reverse(), async b=>{
         expect(c2.bestBlockHash).toBe(l[1].hash);
-        await c2.addBlock(b, null, difficulty);
+        await c2.addBlock(b, difficulty);
     });
 
     expect(c2.bestBlockHash).toBe(l[8].hash);
@@ -477,7 +477,7 @@ test('Tracking Confirmations and Reverse Child List', async ()=>{
     let c = new RealBadCache();
     c.genesisDifficulty = 0; // Just ignore difficulty target!
     await asyncForEach(l2.concat(l1), async b=>{
-        await c.addBlock(b, null, difficulty);
+        await c.addBlock(b, difficulty);
     });
     // The longer chain should "win"
     expect(c.bestBlockHash).toBe(l1[11].hash);

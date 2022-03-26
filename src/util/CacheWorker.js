@@ -20,17 +20,17 @@ class CacheWorker {
     }
 
     // Validate and possibly add a block to the cache
-    async addBlock(block, source) {
+    async addBlock(block) {
         let b = RealBadBlock.coerce(block);
-        return await this.#cache.addBlock(b, source);
+        return await this.#cache.addBlock(b);
     }
 
     // Validate and possibly add a list of blocks to the cache
-    async addBlocks(blockList, source) {
+    async addBlocks(blockList) {
         let anyGood = false;
         for (let b of blockList) {
             // WARNING: The order of the operands matters here, due to lazy execution!
-            anyGood = await this.addBlock(b, source) || anyGood;
+            anyGood = await this.addBlock(b) || anyGood;
         }
         return anyGood;
     }
@@ -52,7 +52,6 @@ class CacheWorker {
         return {
             block: this.#cache.getBlock(hash),
             state: this.#cache.getState(hash),
-            source: this.#cache.getSource(hash),
         };
     }
 

@@ -405,7 +405,7 @@ export class RealBadCache {
     }
 
     // Only accept good RealBadBlocks into our cache!
-    async addBlock(block, source, minDifficulty=this.minDifficulty) {
+    async addBlock(block, minDifficulty=this.minDifficulty) {
         try {
             let hash = block.hash; // Save us the trouble of recomputing this tons of times!
             if (
@@ -419,7 +419,6 @@ export class RealBadCache {
                 // This is a new block, so create the info object with just the block and originator for now.
                 this._blocks[hash] = {
                     block: block,
-                    source: source,
                 };
 
                 // Check if this block is a genesis block or is linked to a block with a valid already-computed state
@@ -550,13 +549,6 @@ export class RealBadCache {
     getBlock(hash) {
         if (hash in this._blocks) {
             return this._blocks[hash].block;
-        }
-        return null;
-    }
-
-    getSource(hash) {
-        if (hash in this._blocks) {
-            return this._blocks[hash].source;
         }
         return null;
     }
