@@ -94,6 +94,10 @@ class CacheWorker {
         return this.#cache.getBlocksWithTransaction(txId);
     }
 
+    getTxPool() {
+        return this.#cache.getTxPool();
+    }
+
     makeMineableBlock(reward, destination) {
         return this.#cache.makeMineableBlock(reward, destination);
     }

@@ -55,6 +55,8 @@ export default function TransactionView(props) {
             );
         }
         else if (d instanceof RealBadNftTransfer) {
+            const emoji = lstate.nftPayloads[tx.txData.nftId]?.emoji;
+            if (!emoji) return null;
             return (
                 <Stack
                     direction="row"
@@ -64,7 +66,7 @@ export default function TransactionView(props) {
                 >
                     <Emoji
                         size={24}
-                        emoji={lstate.nftPayloads[tx.txData.nftId].emoji}
+                        emoji={emoji}
                     />
                     <Typography noWrap variant="hexblob">{tx.source}</Typography>
                     <NavigateNextRoundedIcon />

@@ -24,15 +24,12 @@ export class RealBadAccountState {
 
 export class RealBadNftState {
     owner = null;
-    nonce = 0;
 
     static coerce({
         owner,
-        nonce,
     }) {
         let r = new RealBadNftState();
         r.owner = owner;
-        r.nonce = nonce;
         return r;
     }
 }
@@ -234,17 +231,21 @@ export class RealBadLedgerState {
             // See if the NFT already exists
             if (t.txData.nftId in this.nfts) throw new RealBadInvalidTransaction("NFT Mint attempted on already-existing NFT ID", t, this.lastBlockHash);
 
-            // Accounts only have to exist and have coins if they are paying a Tx fee.
-            // Otherwise they don't need to exist and they also don't increment their nonce!
-            if (t.transactionFee > 0) {
-                if (!(t.source in this.accounts)) throw new RealBadInvalidTransaction("Account tried to pay NFT Mint txFee before it existed", t, this.lastBlockHash);
-                if (t.sourceNonce !== this.accounts[t.source].nonce + 1) throw new RealBadInvalidTransaction("Incorrect nonce for NFT Mint txFee", t, this.lastBlockHash);
-                if (t.transactionFee > this.accounts[t.source].balance) throw new RealBadInvalidTransaction("Insufficient balance for NFT Mint txFee", t, this.lastBlockHash);
-            }
+            // Accounts must exist to perform an NFT Mint, because the nonce is incremented.
+            // If it doesn't exist yet, create it with a 0 nonce. This transaction's nonce should then be "1" to succeed.
+            if (!(t.source in this.accounts)) this.accounts[t.source] = new RealBadAccountState();
+
+            // Verify the nonce
+            if (t.sourceNonce !== this.accounts[t.source].nonce + 1) throw new RealBadInvalidTransaction("Incorrect nonce for NFT Mint txFee", t, this.lastBlockHash);
+
+            // See if they can pay the transaction fee
+            if (t.transactionFee > this.accounts[t.source].balance) throw new RealBadInvalidTransaction("Insufficient balance for NFT Mint txFee", t, this.lastBlockHash);
+
+            // Increment the nonce
+            this.accounts[t.source].nonce++;
 
             if (t.transactionFee > 0) {
-                // Consume the money spent from this account and increment the nonce:
-                this.accounts[t.source].nonce++;
+                // Consume the money spent from this account:
                 this.accounts[t.source].balance -= t.transactionFee;
 
                 // Accept the transaction fee:
@@ -256,7 +257,6 @@ export class RealBadLedgerState {
 
             // Create the NFT and claim it for this account
             let nft = new RealBadNftState();
-            nft.nonce = 0;
             nft.owner = t.source;
             this.nfts[t.txData.nftId] = nft;
 
@@ -270,17 +270,20 @@ export class RealBadLedgerState {
             if (!(nftid in this.nfts)) throw new RealBadInvalidTransaction("NFT Transfer attempted on non-existent NFT ID", t, this.lastBlockHash);
             if (this.nfts[nftid].owner !== t.source) throw new RealBadInvalidTransaction("NFT Transfer attempted by non-owner of NFT", t, this.lastBlockHash);
 
-            // Accounts only have to exist and have coins if they are paying a Tx fee.
-            // Otherwise they don't need to exist and they also don't increment their nonce!
-            if (t.transactionFee > 0) {
-                if (!(t.source in this.accounts)) throw new RealBadInvalidTransaction("Account tried to pay NFT Mint txFee before it existed", t, this.lastBlockHash);
-                if (t.sourceNonce !== this.accounts[t.source].nonce + 1) throw new RealBadInvalidTransaction("Incorrect nonce for NFT Mint txFee", t, this.lastBlockHash);
-                if (t.transactionFee > this.accounts[t.source].balance) throw new RealBadInvalidTransaction("Insufficient balance for NFT Mint txFee", t, this.lastBlockHash);
-            }
+            // Accounts must exist to perform an NFT Transfer, because we create them for NFT Mint and when receiving an NFT in a Transfer.
+            if (!(t.source in this.accounts)) throw new RealBadInvalidTransaction("Account tried to send NFT before it existed", t, this.lastBlockHash);
+
+            // Verify the nonce
+            if (t.sourceNonce !== this.accounts[t.source].nonce + 1) throw new RealBadInvalidTransaction("Incorrect nonce for NFT Transfer txFee", t, this.lastBlockHash);
+
+            // See if they can pay the transaction fee
+            if (t.transactionFee > this.accounts[t.source].balance) throw new RealBadInvalidTransaction("Insufficient balance for NFT Transfer txFee", t, this.lastBlockHash);
+
+            // Increment the nonce
+            this.accounts[t.source].nonce++;
 
             if (t.transactionFee > 0) {
-                // Consume the money spent from this account and increment the nonce:
-                this.accounts[t.source].nonce++;
+                // Consume the money spent from this account:
                 this.accounts[t.source].balance -= t.transactionFee;
 
                 // Accept the transaction fee:
@@ -291,8 +294,11 @@ export class RealBadLedgerState {
             if (this.trackedAccount === t.source) this.accountLedger.push({txId: t.txId, delta: -t.transactionFee});
             else if (this.trackedAccount === t.txData.destination) this.accountLedger.push({txId: t.txId, delta: 0});
 
+            // Create a destination account if it doesn't already exist
+            // We aren't giving it any money, but we want to show the account status to view the NFT!
+            if (!(t.txData.destination in this.accounts)) this.accounts[t.txData.destination] = new RealBadAccountState();
+
             // Enjoy your shiny new NFT!
-            this.nfts[nftid].nonce++;
             this.nfts[nftid].owner = t.txData.destination;
 
             this.nftLedger[t.txData.nftId].push(t.txId);
@@ -665,6 +671,11 @@ export class RealBadCache {
             console.error(error);
             return false;
         }
+    }
+
+    // Get the pool of transactions that are eligible for mining
+    getTxPool() {
+        return this._txPool;
     }
 
     // Create the next block for mining, based on the best known block plus

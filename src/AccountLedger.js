@@ -1,6 +1,7 @@
 // Show the history of an account - all balance-modifying events with links to blocks on the block chain
 import React, { useState } from 'react';
 
+import Divider from '@mui/material/Divider';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 
@@ -130,10 +131,18 @@ function TransactionEvent(props) {
 }
 
 export default function AccountLedger(props) {
-    const {cache, lstate, onClick} = props;
+    const {cache, lstate, topLState, onClick} = props;
 
     // No valid state yet, so return "nothing"
     if (!lstate?.accountLedger) return null;
+
+    // If we have a topLState, then figure out which transactions are in that state but not in the base one.
+    // Those are "mined" but not "confirmed"
+    let mined = [];
+    if (topLState) {
+        mined = topLState.accountLedger.filter(l=>
+            !lstate.accountLedger.find(q=>(l.txId === q.txId)));
+    }
 
     return (
         <Stack
@@ -143,6 +152,35 @@ export default function AccountLedger(props) {
                 alignItems: "stretch",
             }}
         >
+        { (!mined.length) ? null : (<>
+            <Typography variant="h5">Mined</Typography>
+            <Divider />
+            {
+                mined.map(l=>{
+                    if ("block" in l) return (
+                        <BlockReward
+                            key={l.block}
+                            block={l.block}
+                            delta={l.delta}
+                            onClick={onClick}
+                        />
+                    );
+                    if ("txId" in l) return (
+                        <TransactionEvent
+                            key={l.txId}
+                            txId={l.txId}
+                            delta={l.delta}
+                            lstate={lstate}
+                            cache={cache}
+                            onClick={onClick}
+                        />
+                    );
+                }).reverse()
+            }
+            <Divider variant="fullwidth" />
+        </>)}
+        <Typography variant="h5">Confirmed</Typography>
+        <Divider />
         {
             lstate.accountLedger.map(l=>{
                 if ("block" in l) return (

@@ -121,6 +121,7 @@ test('Transfers', async ()=>{
     t.txData.nftData = {"Am I broke?": true}
     t.txData.nftId = t.txData.hash();
     t.transactionFee = 0.001;
+    t.sourceNonce = 1;
     await t.seal(a2);
     expect(await t.isValid()).toBe(true);
 
@@ -195,7 +196,7 @@ test('Transfers', async ()=>{
     t4.txData.destination = id;
     t4.txData.amount = 111;
     t4.transactionFee = 4;
-    t4.sourceNonce = 1;
+    t4.sourceNonce = 2;
     await t4.seal(a2);
     expect(await t4.isValid()).toBe(true);
 
@@ -205,7 +206,7 @@ test('Transfers', async ()=>{
     t5.txData.nftId = t.txData.nftId;
     t5.txData.amount = 111;
     t5.transactionFee = 5;
-    t5.sourceNonce = 2;
+    t5.sourceNonce = 3;
     await t5.seal(a2);
     expect(await t5.isValid()).toBe(true);
 
@@ -251,12 +252,10 @@ test('Transfers', async ()=>{
 
     s3 = s2.applyBlock(b3);
     expect(s3.nfts[t.txData.nftId].owner).toBe(id);
-    expect(s3.nfts[t.txData.nftId].nonce).toBe(1);
     expect(s3.nfts[t2.txData.nftId].owner).toBe(id2);
-    expect(s3.nfts[t2.txData.nftId].nonce).toBe(1);
 
     expect(s3.accounts[id].nonce).toBe(3);
-    expect(s3.accounts[id2].nonce).toBe(2);
+    expect(s3.accounts[id2].nonce).toBe(3);
     expect(s3.accounts[id2].balance).toBe(s2.accounts[id2].balance + t3.txData.amount - t4.txData.amount - t4.transactionFee - t5.transactionFee);
     expect(s3.accounts[id].balance).toBe(s2.accounts[id].balance + reward - t3.txData.amount + t4.txData.amount + t4.transactionFee + t5.transactionFee);
 });

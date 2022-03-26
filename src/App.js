@@ -10,7 +10,6 @@ import TabPanel from '@mui/lab/TabPanel';
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
 import PrecisionManufacturingRoundedIcon from '@mui/icons-material/PrecisionManufacturingRounded';
-import SendRoundedIcon from '@mui/icons-material/SendRounded';
 
 import AccountLedger from './AccountLedger.js';
 import {
@@ -21,13 +20,15 @@ import BalanceSummary from './BalanceSummary.js';
 import BlockView from './BlockView';
 import { ConnectionManager, PeerApp } from './ConnectionManager';
 import TreeView from './TreeView';
+import PendingView from './PendingView';
 import HashDemo from './HashDemo';
 
 // For the MineWorker:
 import * as Comlink from 'comlink';
 
 import {
-  RealBadBlock
+  RealBadBlock,
+  RealBadTransaction,
 } from './util/RealBadCoin.tsx';
 
 import {
@@ -48,10 +49,10 @@ class App extends React.Component {
       tvLState: null,
       tvFollow: true,
       topHash: null,
-      topBlock: null, // Not actually _used_ anymore!
       topLState: null,
       accountSelected: null,
       accountLState: null,
+      txPool: {},
       miningBlock: null,
       cache: null,
       newBlockCounter: 0,
@@ -86,6 +87,15 @@ class App extends React.Component {
       const hash = RealBadBlock.coerce(block).hash;
       await this.cacheHasNewBlock(hash, null);
     }
+
+    // Restore pending transactions if we have any
+    const tx_pool = JSON.parse(sessionStorage.getItem("tx_pool")) ?? {};
+    for (const tx of Object.values(tx_pool)) {
+      if (await this.state.cache.addTransaction(tx)) {
+        // Update our transaction pool!
+        this.updateTxPool();
+      }
+    };
   }
 
   async handleNewPeer(peer) {
@@ -113,6 +123,21 @@ class App extends React.Component {
 
   // Submit a new transaction to be included in future blocks
   async submitTransaction(tx) {
+    // Grab the most recent nonce in the ledger.
+    // NOTE: We don't check the pool for higher nonces - you just can't do more than one "pending" transaction at a time.
+    //       Otherwise you could freeze your account progress in very bad ways if an earlier transaction is impossible for some reason!
+
+    // If my account isn't already in the ledger, then our first "nonce" would be 1 for any transaction we are allowed to do.
+    let nextNonce = 1;
+    const id = this.state.pubKeyHex;
+    const accounts = this.state.topLState?.accounts ?? {};
+    if (id in accounts) {
+      nextNonce = accounts[id].nonce + 1;
+    }
+
+    // Set the new nonce
+    tx.sourceNonce = nextNonce;
+
     // Sign it!
     await tx.seal(this._id);
 
@@ -253,7 +278,7 @@ class App extends React.Component {
       // If there are any gaps that aren't cleared up, then set ourselves a timer to check again later!
       if (Object.keys(this._gapsToFix).length) {
         //console.log("There are un-finished gaps. Setting watchdog for later.");
-        this._gapCheckTimer = setTimeout(()=>{this._fixGaps(true)}, 10000);
+        this._gapCheckTimer = setTimeout(()=>{this._fixGaps(true)}, 3000);
       }
     }
     finally {
@@ -329,6 +354,9 @@ class App extends React.Component {
           }),
           [peer], // Don't broadcast BACK to the person who told us about this!
         );
+
+        // Update our transaction pool!
+        this.updateTxPool();
       }
     }
   }
@@ -407,7 +435,6 @@ class App extends React.Component {
       // Automatically jump to the selected state
       this.setState({
         topHash: topHash,
-        topBlock: RealBadBlock.coerce(bi.block),
         topLState: RealBadLedgerState.coerce(bi.state),
         accountSelected: accountHash,
         accountLState: accountState,
@@ -442,6 +469,22 @@ class App extends React.Component {
     }
   }
 
+  async updateTxPool() {
+    // Grab the Tx pool and update our state
+    const pool = await this.state.cache.getTxPool();
+
+    // Stash it in local storage
+    localStorage.setItem("tx_pool", JSON.stringify(pool));
+
+    const coercedPool = {};
+    Object.keys(pool).forEach(txId=>{
+      coercedPool[txId] = RealBadTransaction.coerce(pool[txId]);
+    });
+    this.setState({
+      txPool : coercedPool,
+    });
+  }
+
   async miningLoop(destination) {
     let worker = null;
     let reward = 100;
@@ -450,6 +493,7 @@ class App extends React.Component {
     while (true) {
       // Get a new mineable block from the cache, which will include up-to-date list of transactions, etc.
       let unsealed = RealBadBlock.coerce(await this.state.cache.makeMineableBlock(reward, destination));
+      await this.updateTxPool(); // Getting a new mineable block is what triggers our txPool to update, so sync up our copy here!
       unsealed.nonce = Math.round(Math.random() * 2**32);
       //console.log("Set up to mine block: " + JSON.stringify(unsealed));
       this.setState({
@@ -551,6 +595,7 @@ class App extends React.Component {
                 pubKeyHex={this.state.pubKeyHex}
                 privKeyHex={this.state.privKeyHex}
                 lstate={this.state.accountLState}
+                topLState={this.state.topLState}
                 sendTx={(tx)=>this.submitTransaction(tx)}
               />
             </Paper>
@@ -558,9 +603,17 @@ class App extends React.Component {
               <PeerApp conn={this._conn} />
             </Paper>
             <Paper elevation={4}>
+              <PendingView
+                lstate={this.state.topLState}
+                txPool={this.state.txPool}
+                account={this.state.pubKeyHex}
+              />
+            </Paper>
+            <Paper elevation={4}>
               <AccountLedger
                 cache={this.state.cache}
                 lstate={this.state.accountLState}
+                topLState={this.state.topLState}
                 onClick={block=>{
                   //console.log("Clicked on " + block);
                   // Jump to the block on the "blockchain" view:

@@ -94,7 +94,7 @@ export function NftChip(props) {
 }
 
 export function AccountView(props) {
-    const {lstate, pubKeyHex, privKeyHex, sendTx} = props;
+    const {lstate, topLState, pubKeyHex, privKeyHex, sendTx} = props;
     const [showPrivKey, setShowPrivKey] = useState(false);
     const [showCoinTxDialog, setShowCoinTxDialog] = useState(false);
     const [showMintNftDialog, setShowMintNftDialog] = useState(false);
@@ -162,9 +162,8 @@ export function AccountView(props) {
                 <CoinTransferDialog
                     open={showCoinTxDialog}
                     onClose={()=>{setShowCoinTxDialog(false)}}
-                    id={pubKeyHex}
                     sendTx={sendTx}
-                    lstate={lstate}
+                    lstate={topLState}
                 />
             </ListItem>
 
@@ -185,9 +184,8 @@ export function AccountView(props) {
                 <MintNftDialog
                     open={showMintNftDialog}
                     onClose={()=>{setShowMintNftDialog(false)}}
-                    id={pubKeyHex}
                     sendTx={sendTx}
-                    lstate={lstate}
+                    lstate={topLState}
                 />
             </ListItem>
 
@@ -226,9 +224,8 @@ export function AccountView(props) {
                         nftId={transferNft?.nftId}
                         emoji={transferNft?.emoji}
                         onClose={()=>{setShowTransferNftDialog(false)}}
-                        id={pubKeyHex}
                         sendTx={sendTx}
-                        lstate={lstate}
+                        lstate={topLState}
                     />
                 </ListItem>
             </>)}

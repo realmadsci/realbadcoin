@@ -82,11 +82,10 @@ export function CoinTransferDialog(props) {
     /* Expected props:
     open    - Whether the dialog is "open" or not
     lstate  - Current Ledger State
-    id      - Account ID for signing transactions
     sendTx  - Callback for submitting the transaction
     onClose - Callback when dialog is closed
     */
-    const { open, lstate, id, sendTx, onClose } = props;
+    const { open, lstate, sendTx, onClose } = props;
 
     const [error, setError] = React.useState("");
     const [dest, setDest] = React.useState("");
@@ -111,22 +110,11 @@ export function CoinTransferDialog(props) {
             return;
         }
 
-        // If my account isn't already in the ledger, we can't send money anyway, but our "nonce" would be 0.
-        let balance = 0;
-        let nextNonce = 0;
-        const accounts = lstate?.accounts ?? {};
-        if (id in accounts) {
-            nextNonce = accounts[id].nonce + 1;
-            balance = accounts[id].balance;
-        }
-        console.log("I've got " + balance.toString() + " to spend!");
-
         let tx = new RealBadTransaction();
         tx.txData = new RealBadCoinTransfer();
         tx.txData.destination = dest.toLowerCase(); // Hm... you can "burn" money pretty easily!
         tx.txData.amount = Number(amount);
         tx.transactionFee = Number(txFee);
-        tx.sourceNonce = nextNonce;
 
         if (await sendTx(tx)) {
             onClose();
@@ -219,11 +207,10 @@ export function MintNftDialog(props) {
     /* Expected props:
     open    - Whether the dialog is "open" or not
     lstate  - Current Ledger State
-    id      - Account ID for signing transactions
     sendTx  - Callback for submitting the transaction
     onClose - Callback when dialog is closed
     */
-    const { open, lstate, id, sendTx, onClose } = props;
+    const { open, lstate, sendTx, onClose } = props;
 
     const [error, setError] = React.useState("");
     const [pickerOpen, setPickerOpen] = React.useState(false);
@@ -248,21 +235,9 @@ export function MintNftDialog(props) {
             return;
         }
 
-        // NOTE: We are spending money so we need to get our Nonce and balance for sanity checking!
-        // If my account isn't already in the ledger, we can't send money anyway, but our "nonce" would be 0.
-        let balance = 0;
-        let nextNonce = 0;
-        const accounts = lstate?.accounts ?? {};
-        if (id in accounts) {
-            nextNonce = accounts[id].nonce + 1;
-            balance = accounts[id].balance;
-        }
-        console.log("I've got " + balance.toString() + " to spend!");
-
         let tx = new RealBadTransaction();
         tx.txData = nft;
         tx.transactionFee = Number(txFee);
-        tx.sourceNonce = nextNonce;
 
         if (await sendTx(tx)) {
             onClose();
@@ -351,11 +326,10 @@ export function TransferNftDialog(props) {
     nftId   - Which NFT to transfer
     emoji   - The emoji for this NFT
     lstate  - Current Ledger State
-    id      - Account ID for signing transactions
     sendTx  - Callback for submitting the transaction
     onClose - Callback when dialog is closed
     */
-    const { open, nftId, emoji, lstate, id, sendTx, onClose } = props;
+    const { open, nftId, emoji, lstate, sendTx, onClose } = props;
 
     const [error, setError] = React.useState("");
     const [dest, setDest] = React.useState("");
@@ -374,22 +348,11 @@ export function TransferNftDialog(props) {
             return;
         }
 
-        // If my account isn't already in the ledger, we can't send money anyway, but our "nonce" would be 0.
-        let balance = 0;
-        let nextNonce = 0;
-        const accounts = lstate?.accounts ?? {};
-        if (id in accounts) {
-            nextNonce = accounts[id].nonce + 1;
-            balance = accounts[id].balance;
-        }
-        console.log("I've got " + balance.toString() + " to spend!");
-
         let tx = new RealBadTransaction();
         tx.txData = new RealBadNftTransfer();
         tx.txData.nftId = nftId.toLowerCase();
         tx.txData.destination = dest.toLowerCase();
         tx.transactionFee = Number(txFee);
-        tx.sourceNonce = nextNonce;
 
         if (await sendTx(tx)) {
             onClose();
