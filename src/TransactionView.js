@@ -9,18 +9,18 @@ import Typography from '@mui/material/Typography';
 
 import NavigateNextRoundedIcon from '@mui/icons-material/NavigateNextRounded';
 
+import { Emoji } from 'emoji-mart';
+
 import {
     RealBadCoinTransfer,
     RealBadNftMint,
     RealBadNftTransfer,
 } from './util/RealBadCoin.tsx';
 
-class TransactionView extends React.Component {
-    constructor(props) {
-        super(props);
-    }
+export default function TransactionView(props) {
+    const {tx, expanded, lstate} = props;
 
-    static renderSmall(tx) {
+    const renderSmall = (tx)=>{
         const d = tx.txData;
         if (d instanceof RealBadCoinTransfer) {
             return (
@@ -38,15 +38,45 @@ class TransactionView extends React.Component {
             );
         }
         else if (d instanceof RealBadNftMint) {
-            <Typography noWrap>TODO: Implement NFT Mint small view</Typography>
+            return (
+                <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{width: 200, flexGrow: 1}}
+                    justifyContent="space-between"
+                >
+                    <Emoji
+                        size={24}
+                        emoji={d.nftData.emoji}
+                    />
+                    <Typography noWrap variant="hexblob">{d.nftId}</Typography>
+                    <Typography whiteSpace="nowrap">{"\u211C " + tx.transactionFee.toString()}</Typography>
+                </Stack>
+            );
         }
         else if (d instanceof RealBadNftTransfer) {
-            <Typography noWrap>TODO: Implement NFT Transfer small view</Typography>
+            return (
+                <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{width: 200, flexGrow: 1}}
+                    justifyContent="space-between"
+                >
+                    <Emoji
+                        size={24}
+                        emoji={lstate.nftPayloads[tx.txData.nftId].emoji}
+                    />
+                    <Typography noWrap variant="hexblob">{tx.source}</Typography>
+                    <NavigateNextRoundedIcon />
+                    <Typography noWrap variant="hexblob">{tx.txData.destination}</Typography>
+                    <Typography whiteSpace="nowrap">{"\u211C " + tx.transactionFee.toString()}</Typography>
+                </Stack>
+            );
         }
         else return null;
-    }
+    };
 
-    static renderTxData(d) {
+    const renderTxData = (d)=>{
         /* Available fields in txData:
         RealBadCoinTransfer
         destination = null; // Destination account ID (public key)
@@ -58,7 +88,6 @@ class TransactionView extends React.Component {
 
         RealBadNftTransfer
         nftId = null;       // The ID (hash) of the NFT. Must already be minted before it can be transferred.
-        nftNonce = 0;       // Incrementing number specifying transfer count for this NFT. Must be sequentually incrementing or the transaction will be ignored.
         destination = null; // Destination account ID (public key) for the new owner of the NFT.
         */
         if (d instanceof RealBadCoinTransfer) {
@@ -93,7 +122,7 @@ class TransactionView extends React.Component {
                 <ListItem>
                 <ListItemText
                     primary="Content"
-                    secondary={d.nftData.toString()}
+                    secondary={JSON.stringify(d.nftData)}
                 />
                 </ListItem>
                 </>
@@ -116,74 +145,64 @@ class TransactionView extends React.Component {
                     secondaryTypographyProps={{variant: "hexblob"}}
                 />
                 </ListItem>
-                <ListItem>
-                <ListItemText
-                    primary="NFT Nonce"
-                    secondary={d.nftNonce}
-                />
-                </ListItem>
                 </>
             );
         }
         else return null;
-    }
+    };
 
-    render() {
-        /* Available fields in RealBadTransaction:
-        source = null;          // Source account ID (public key)
-        sourceNonce = 0;        // Source account transaction nonce. Used to ensure transactions (including transactionFees) apply IN ORDER.
-                                // Must be sequentially incrementing or transaction will be ignored.
-                                // nonce is NOT REQURIED and NOT UPDATED if no coins are spent (txFee or transfer).
-        timestamp = null;       // Time when the transaction is created. Miners will only propagate and process transactions during a certain time window.
-        transactionFee = 0;     // Fee to be paid to the miner if this transaction is accepted into a block. Miners _might_ not accept transactions without fees!
-        txData = null;          // The data portion of the transaction. One of the valid transaction object types must go here.
-        txId = null;            // Hash of `[source, timestamp, transactionFee, txData]`. This serves as the unique ID for the transaction.
-        signature = null;       // Signature of `txId` using the `source` account.
-        */
+    /* Available fields in RealBadTransaction:
+    source = null;          // Source account ID (public key)
+    sourceNonce = 0;        // Source account transaction nonce. Used to ensure transactions (including transactionFees) apply IN ORDER.
+                            // Must be sequentially incrementing or transaction will be ignored.
+                            // nonce is NOT REQURIED and NOT UPDATED if no coins are spent (txFee or transfer).
+    timestamp = null;       // Time when the transaction is created. Miners will only propagate and process transactions during a certain time window.
+    transactionFee = 0;     // Fee to be paid to the miner if this transaction is accepted into a block. Miners _might_ not accept transactions without fees!
+    txData = null;          // The data portion of the transaction. One of the valid transaction object types must go here.
+    txId = null;            // Hash of `[source, timestamp, transactionFee, txData]`. This serves as the unique ID for the transaction.
+    signature = null;       // Signature of `txId` using the `source` account.
+    */
 
-        if (this.props.tx === undefined) return null;
+    if (tx === undefined) return null;
 
-        // Show the "preview size" unless it is "expanded"
-        if (!this.props.expanded) return TransactionView.renderSmall(this.props.tx);
+    // Show the "preview size" unless it is "expanded"
+    if (!expanded) return renderSmall(tx);
 
-        return (
-            <List component="div" disablePadding>
-            <ListItem>
-                <ListItemText
-                    primary="Transaction ID"
-                    secondary={this.props.tx.txId}
-                    secondaryTypographyProps={{variant: "hexblob"}}
-                />
-            </ListItem>
-            <ListItem>
-                <ListItemText
-                    primary="Transaction Time"
-                    secondary={this.props.tx.timestamp.toLocaleString()}
-                />
-            </ListItem>
-            <ListItem>
-                <ListItemText
-                    primary="Transaction Fee"
-                    secondary={"\u211C " + this.props.tx.transactionFee.toString()}
-                />
-            </ListItem>
-            <ListItem>
-                <ListItemText
-                    primary="Source"
-                    secondary={this.props.tx.source}
-                    secondaryTypographyProps={{variant: "hexblob"}}
-                />
-            </ListItem>
-            <ListItem>
-                <ListItemText
-                    primary="Source Nonce"
-                    secondary={this.props.tx.sourceNonce}
-                />
-            </ListItem>
-            {TransactionView.renderTxData(this.props.tx.txData)}
-            </List>
-        );
-    }
+    return (
+        <List component="div" disablePadding>
+        <ListItem>
+            <ListItemText
+                primary="Transaction ID"
+                secondary={tx.txId}
+                secondaryTypographyProps={{variant: "hexblob"}}
+            />
+        </ListItem>
+        <ListItem>
+            <ListItemText
+                primary="Transaction Time"
+                secondary={tx.timestamp.toLocaleString()}
+            />
+        </ListItem>
+        <ListItem>
+            <ListItemText
+                primary="Transaction Fee"
+                secondary={"\u211C " + tx.transactionFee.toString()}
+            />
+        </ListItem>
+        <ListItem>
+            <ListItemText
+                primary="Source"
+                secondary={tx.source}
+                secondaryTypographyProps={{variant: "hexblob"}}
+            />
+        </ListItem>
+        <ListItem>
+            <ListItemText
+                primary="Source Nonce"
+                secondary={tx.sourceNonce}
+            />
+        </ListItem>
+        {renderTxData(tx.txData)}
+        </List>
+    );
 }
-
-export default TransactionView;

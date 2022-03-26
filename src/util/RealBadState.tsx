@@ -115,6 +115,15 @@ export class RealBadLedgerState {
     // Format is {txId: transaction id, delta: change for myself} or {block: block hash, delta: change for myself}
     accountLedger = [];
 
+    // Ledger entries for every NFT
+    // This will contain every event that created or changed ownership for every NFT.
+    // Format is {nftId: [minting tx id, transfer 1 tx id, transfer 2 tx id, ...]}
+    nftLedger = {};
+
+    // All the data payloads for each NFT in the history keyed by nftId.
+    // Note: These are shallow-copied between states!
+    nftPayloads = {};
+
     // Can assign the genesis block difficulty in the constructor
     constructor(genesisDifficulty = 2e6) {
         this.nextBlockDifficulty = genesisDifficulty;
@@ -133,6 +142,8 @@ export class RealBadLedgerState {
         children,
         trackedAccount,
         accountLedger,
+        nftLedger,
+        nftPayloads,
     }) {
         let r = new RealBadLedgerState();
         Object.keys(accounts).forEach(k=>{
@@ -161,6 +172,8 @@ export class RealBadLedgerState {
         r.children = children;
         r.trackedAccount = trackedAccount;
         r.accountLedger = Array.from(accountLedger);
+        r.nftLedger = JSON.parse(JSON.stringify(nftLedger));
+        r.nftPayloads = {...nftPayloads}; // Shallow copy!
         return r;
     }
 
@@ -179,6 +192,8 @@ export class RealBadLedgerState {
             children: this.children,
             trackedAccount: this.trackedAccount,
             accountLedger: this.accountLedger,
+            nftLedger: this.nftLedger,
+            nftPayloads: this.nftPayloads,
         };
     }
 
@@ -231,23 +246,29 @@ export class RealBadLedgerState {
                 // Consume the money spent from this account and increment the nonce:
                 this.accounts[t.source].nonce++;
                 this.accounts[t.source].balance -= t.transactionFee;
-                if (this.trackedAccount === t.source) this.accountLedger.push({txId: t.txId, delta: -t.transactionFee});
 
                 // Accept the transaction fee:
                 this.transactionFees += t.transactionFee;
             }
+
+            // Always track this transaction for the source account, even if the transaction fee is 0
+            if (this.trackedAccount === t.source) this.accountLedger.push({txId: t.txId, delta: -t.transactionFee});
 
             // Create the NFT and claim it for this account
             let nft = new RealBadNftState();
             nft.nonce = 0;
             nft.owner = t.source;
             this.nfts[t.txData.nftId] = nft;
+
+            // Keep track of NFT activities in the state
+            // The first "activity" is this minting event, and we need to be able to find it in order to get the NFT data later.
+            this.nftLedger[t.txData.nftId] = [t.txId];
+            this.nftPayloads[t.txData.nftId] = t.txData.nftData;
         }
         else if (t.txData instanceof RealBadNftTransfer) {
             let nftid = t.txData.nftId;
             if (!(nftid in this.nfts)) throw new RealBadInvalidTransaction("NFT Transfer attempted on non-existent NFT ID", t, this.lastBlockHash);
             if (this.nfts[nftid].owner !== t.source) throw new RealBadInvalidTransaction("NFT Transfer attempted by non-owner of NFT", t, this.lastBlockHash);
-            if (t.txData.nftNonce !== this.nfts[nftid].nonce + 1) throw new RealBadInvalidTransaction("Incorrect NFT nonce", t, this.lastBlockHash);
 
             // Accounts only have to exist and have coins if they are paying a Tx fee.
             // Otherwise they don't need to exist and they also don't increment their nonce!
@@ -261,15 +282,20 @@ export class RealBadLedgerState {
                 // Consume the money spent from this account and increment the nonce:
                 this.accounts[t.source].nonce++;
                 this.accounts[t.source].balance -= t.transactionFee;
-                if (this.trackedAccount === t.source) this.accountLedger.push({txId: t.txId, delta: -t.transactionFee});
 
                 // Accept the transaction fee:
                 this.transactionFees += t.transactionFee;
             }
 
+            // Track this for the source and/or destination accounts regardless of transaction fee
+            if (this.trackedAccount === t.source) this.accountLedger.push({txId: t.txId, delta: -t.transactionFee});
+            else if (this.trackedAccount === t.txData.destination) this.accountLedger.push({txId: t.txId, delta: 0});
+
             // Enjoy your shiny new NFT!
             this.nfts[nftid].nonce++;
             this.nfts[nftid].owner = t.txData.destination;
+
+            this.nftLedger[t.txData.nftId].push(t.txId);
         }
     }
 

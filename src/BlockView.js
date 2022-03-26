@@ -125,12 +125,14 @@ function BlockView(props) {
                         <TransactionView
                             tx={tx}
                             expanded={false}
+                            lstate={props.lstate}
                         />
                     </AccordionSummary>
                     <AccordionDetails sx={{p:0}}>
                         <TransactionView
                             tx={tx}
                             expanded={true}
+                            lstate={props.lstate}
                         />
                     </AccordionDetails>
                 </Accordion>

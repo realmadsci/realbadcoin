@@ -1,30 +1,34 @@
-// Imports from paulmillr.github.io demo:
-import * as React from 'react';
+import React, { useState } from 'react';
 
 import Box from '@mui/material/Box';
-import TextField from '@mui/material/TextField';
-
+import Chip from '@mui/material/Chip';
 import Collapse from '@mui/material/Collapse';
+import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
-import Typography from '@mui/material/Typography';
 
 import AccountBalanceRoundedIcon from '@mui/icons-material/AccountBalanceRounded';
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import CatchingPokemonRoundedIcon from '@mui/icons-material/CatchingPokemonRounded';
 import ExpandLessRoundedIcon from '@mui/icons-material/ExpandLessRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import LockRoundedIcon from '@mui/icons-material/LockRounded';
+import SendRoundedIcon from '@mui/icons-material/SendRounded';
+
+import { Emoji } from 'emoji-mart';
 
 import * as ed from '@noble/ed25519';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils';
 
-function pad(n, length = 64, base = 16) {
-    //return n.toString(base).padStart(length, '0');
-    return n.toString();
-}
+import { CoinTransferDialog, MintNftDialog, TransferNftDialog } from './TransactionDialog';
+
+import {
+    RealBadTransaction,
+} from './util/RealBadCoin.tsx';
 
 export class AccountIdentity {
 
@@ -69,62 +73,79 @@ export class AccountIdentity {
     }
 }
 
-export class AccountView extends React.Component {
-    constructor(props) {
-        super(props);
+export function NftChip(props) {
+    const {nftId, lstate, onSend} = props;
 
-        this.state = {
-            showPrivKey: false,
-        };
+    const emoji=lstate.nftPayloads[nftId].emoji;
+    return (
+        <Chip
+            avatar={
+                <Emoji
+                    size={48}
+                    emoji={emoji}
+                />
+            }
+            onDelete={()=>{
+                onSend(emoji);
+            }}
+            deleteIcon={<SendRoundedIcon />}
+        />
+    );
+}
+
+export function AccountView(props) {
+    const {lstate, pubKeyHex, privKeyHex, sendTx} = props;
+    const [showPrivKey, setShowPrivKey] = useState(false);
+    const [showCoinTxDialog, setShowCoinTxDialog] = useState(false);
+    const [showMintNftDialog, setShowMintNftDialog] = useState(false);
+    const [showTransferNftDialog, setShowTransferNftDialog] = useState(false);
+    const [transferNft, setTransferNft] = useState({nftId:"", emoji:":shrug:"});
+
+    let balance = (lstate && pubKeyHex in lstate.accounts && lstate.accounts[pubKeyHex].balance) || 0;
+
+    let nfts = [];
+    if (lstate !== null) {
+        nfts = Object.keys(lstate.nfts).filter(k=>(lstate.nfts[k].owner === pubKeyHex));
     }
 
-    toggleShowPrivKey() {
-        this.setState({showPrivKey: !this.state.showPrivKey});
+    const toggleShowPrivKey = ()=>{
+        setShowPrivKey(!showPrivKey);
     }
 
-    render() {
-        let s = this.props.lstate;
-        let id = this.props.pubKeyHex;
-        let balance = (s && id in s.accounts && s.accounts[id].balance) || 0;
-        let nfts = [];
-        if (s !== null) {
-            nfts = Object.keys(s.nfts).filter(k=>(s.nfts[k].owner === id));
-        }
-        //TODO: Add drop-down list for owned NFTs??
+    return (
+        <List component="div" disablePadding>
+            <ListItem>
+                <ListItemIcon>
+                    <AccountBalanceWalletRoundedIcon />
+                </ListItemIcon>
+                <ListItemText
+                    primary="Wallet"
+                    secondary={pubKeyHex}
+                    secondaryTypographyProps={{variant: "hexblob"}}
+                />
+                <IconButton
+                    aria-label={showPrivKey ? "Hide Private Key" : "Show Private Key"}
+                    onClick={toggleShowPrivKey}
+                >
+                    {showPrivKey ? <ExpandLessRoundedIcon /> : <ExpandMoreRoundedIcon />}
+                </IconButton>
+            </ListItem>
+            <Collapse in={showPrivKey} timeout="auto" unmountOnExit>
+                <List component="div" disablePadding>
+                    <ListItem>
+                        <ListItemIcon>
+                            <LockRoundedIcon />
+                        </ListItemIcon>
+                        <ListItemText
+                            primary="Private Key"
+                            secondary={privKeyHex}
+                            secondaryTypographyProps={{variant: "hexblob"}}
+                        />
+                    </ListItem>
+                </List>
+            </Collapse>
 
-        return (
-            <List component="div" disablePadding>
-                <ListItem>
-                    <ListItemIcon>
-                        <AccountBalanceWalletRoundedIcon />
-                    </ListItemIcon>
-                    <ListItemText
-                        primary="Wallet"
-                        secondary={id}
-                        secondaryTypographyProps={{variant: "hexblob"}}
-                    />
-                    <IconButton
-                        aria-label={this.state.showPrivKey ? "Hide Private Key" : "Show Private Key"}
-                        onClick={()=>this.toggleShowPrivKey()}
-                    >
-                        {this.state.showPrivKey ? <ExpandLessRoundedIcon /> : <ExpandMoreRoundedIcon />}
-                    </IconButton>
-                </ListItem>
-                <Collapse in={this.state.showPrivKey} timeout="auto" unmountOnExit>
-                    <List component="div" disablePadding>
-                        <ListItem>
-                            <ListItemIcon>
-                                <LockRoundedIcon />
-                            </ListItemIcon>
-                            <ListItemText
-                                primary="Private Key"
-                                secondary={this.props.privKeyHex}
-                                secondaryTypographyProps={{variant: "hexblob"}}
-                            />
-                        </ListItem>
-                    </List>
-                </Collapse>
-                <ListItem>
+            <ListItem>
                 <ListItemIcon>
                     <AccountBalanceRoundedIcon />
                 </ListItemIcon>
@@ -132,8 +153,85 @@ export class AccountView extends React.Component {
                     primary="Balance"
                     secondary={"\u211C " + balance.toString()}
                 />
+                <IconButton
+                    aria-label="Send Coins"
+                    onClick={()=>{setShowCoinTxDialog(true)}}
+                >
+                    <SendRoundedIcon />
+                </IconButton>
+                <CoinTransferDialog
+                    open={showCoinTxDialog}
+                    onClose={()=>{setShowCoinTxDialog(false)}}
+                    id={pubKeyHex}
+                    sendTx={sendTx}
+                    lstate={lstate}
+                />
+            </ListItem>
+
+            <ListItem>
+                <ListItemIcon>
+                    <CatchingPokemonRoundedIcon />
+                </ListItemIcon>
+                <ListItemText
+                    primary="NFTs Owned"
+                    secondary={nfts.length}
+                />
+                <IconButton
+                    aria-label="Mint New NFT"
+                    onClick={()=>{setShowMintNftDialog(true)}}
+                >
+                    <AddRoundedIcon />
+                </IconButton>
+                <MintNftDialog
+                    open={showMintNftDialog}
+                    onClose={()=>{setShowMintNftDialog(false)}}
+                    id={pubKeyHex}
+                    sendTx={sendTx}
+                    lstate={lstate}
+                />
+            </ListItem>
+
+            { (!nfts?.length) ? null : (<>
+                <Divider variant="fullWidth" />
+                <ListItem>
+                    <Box sx={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        columnGap: 1,
+                        rowGap: 2,
+                        paddingTop: 1,
+                        paddingBottom: 1,
+                    }}>
+                    {
+                        nfts.map(nftId=>{
+                            return (
+                                <NftChip
+                                    key={nftId}
+                                    nftId={nftId}
+                                    lstate={lstate}
+                                    onSend={(emoji)=>{
+                                        setTransferNft({
+                                            nftId: nftId,
+                                            emoji: emoji,
+                                        });
+                                        setShowTransferNftDialog(true);
+                                    }}
+                                />
+                            );
+                        })
+                    }
+                    </Box>
+                    <TransferNftDialog
+                        open={showTransferNftDialog}
+                        nftId={transferNft?.nftId}
+                        emoji={transferNft?.emoji}
+                        onClose={()=>{setShowTransferNftDialog(false)}}
+                        id={pubKeyHex}
+                        sendTx={sendTx}
+                        lstate={lstate}
+                    />
                 </ListItem>
-            </List>
-        );
-    }
+            </>)}
+        </List>
+    );
 }

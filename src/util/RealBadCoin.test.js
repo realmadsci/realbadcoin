@@ -99,8 +99,6 @@ test('Null NFT Minting Data Block is not valid', ()=>{
 test('Construct an NFT Transfer Data Block', ()=>{
     let txData = new RealBadNftTransfer();
     expect(txData.isValid()).toBe(false);
-    txData.nftNonce = 0;
-    expect(txData.isValid()).toBe(false);
     txData.destination = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
     expect(txData.isValid()).toBe(false);
     txData.nftId = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
@@ -133,22 +131,6 @@ test('Construct an NFT Transfer Data Block', ()=>{
     expect(txData.isValid()).toBe(false);
     // Sanity check
     txData.nftId = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
-    expect(txData.isValid()).toBe(true);
-
-    // Nonce must be an integer!
-    txData.nftNonce = NaN;
-    expect(txData.isValid()).toBe(false);
-    txData.nftNonce = null;
-    expect(txData.isValid()).toBe(false);
-    txData.nftNonce = undefined;
-    expect(txData.isValid()).toBe(false);
-    txData.nftNonce = 3.14159;
-    expect(txData.isValid()).toBe(false);
-    txData.nftNonce = 1e10;
-    expect(txData.isValid()).toBe(true);
-
-    // Final sanity check
-    txData.nftNonce = 0;
     expect(txData.isValid()).toBe(true);
 
     // Deep copy is still valid:

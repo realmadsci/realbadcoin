@@ -1,7 +1,6 @@
 import * as React from 'react';
 
 import Box from '@mui/material/Box';
-import Fab from '@mui/material/Fab';
 import Paper from '@mui/material/Paper';
 import Tab from '@mui/material/Tab';
 import TabContext from '@mui/lab/TabContext';
@@ -23,7 +22,6 @@ import BlockView from './BlockView';
 import { ConnectionManager, PeerApp } from './ConnectionManager';
 import TreeView from './TreeView';
 import HashDemo from './HashDemo';
-import TransactionDialog from './TransactionDialog';
 
 // For the MineWorker:
 import * as Comlink from 'comlink';
@@ -45,14 +43,13 @@ class App extends React.Component {
       privKeyHex: null,
       pubKeyHex: null,
       activeTab: "1",
-      txDialogOpen: false,
       tvSelected: null,
       tvBlock: null,
       tvLState: null,
       tvFollow: true,
       topHash: null,
       topBlock: null, // Not actually _used_ anymore!
-      topLState: null, // Not actually _used_ anymore!
+      topLState: null,
       accountSelected: null,
       accountLState: null,
       miningBlock: null,
@@ -116,12 +113,22 @@ class App extends React.Component {
 
   // Submit a new transaction to be included in future blocks
   async submitTransaction(tx) {
-    console.log("Submitting! tx=" + JSON.stringify(tx));
+    // Sign it!
+    await tx.seal(this._id);
 
-    // Just fake it as if we "received" it from ourselves and then we'll rebroadcast it
-    await this.handlePeerData(this._conn.myId, JSON.stringify({
-      newTx: tx,
-    }));
+    // Validate and ship it
+    if (await tx.isValid()) {
+      console.log("Submitting! tx=" + JSON.stringify(tx));
+
+      // Just fake it as if we "received" it from ourselves and then we'll rebroadcast it
+      await this.handlePeerData(this._conn.myId, JSON.stringify({
+        newTx: tx,
+      }));
+
+      return true;
+    }
+
+    return false;
   }
 
   async _processSomeBlocks() {
@@ -517,10 +524,6 @@ class App extends React.Component {
     this._conn.disconnectFromServer();
   }
 
-  createTransaction() {
-    console.log("Clicked FAB");
-  }
-
   render() {
     return (
       <TabContext value={this.state.activeTab}>
@@ -544,7 +547,12 @@ class App extends React.Component {
             minWidth: 350,
           }}>
             <Paper elevation={4}>
-              <AccountView pubKeyHex={this.state.pubKeyHex} privKeyHex={this.state.privKeyHex} lstate={this.state.accountLState} />
+              <AccountView
+                pubKeyHex={this.state.pubKeyHex}
+                privKeyHex={this.state.privKeyHex}
+                lstate={this.state.accountLState}
+                sendTx={(tx)=>this.submitTransaction(tx)}
+              />
             </Paper>
             <Paper elevation={4}>
               <PeerApp conn={this._conn} />
@@ -564,33 +572,6 @@ class App extends React.Component {
                 }}
               />
             </Paper>
-            <Fab
-              aria-label="Send Transaction"
-              color="primary"
-              onClick={()=>{
-                this.setState({
-                  txDialogOpen: true,
-                });
-              }}
-              sx={{
-                  position: "fixed",
-                  bottom: 16,
-                  right: 16,
-              }}
-            >
-              <SendRoundedIcon />
-            </Fab>
-            <TransactionDialog
-              open={this.state.txDialogOpen}
-              onClose={()=>{
-                this.setState({
-                  txDialogOpen: false,
-                });
-              }}
-              id={this._id}
-              sendTx={tx=>this.submitTransaction(tx)}
-              lstate={this.state.accountLState}
-            />
           </Box>
         </TabPanel>
         <TabPanel value="2" sx={{p: 0}}>
@@ -605,7 +586,7 @@ class App extends React.Component {
               <HashDemo />
             </Paper>
             <Paper elevation={4}>
-              <BlockView hash={null} block={this.state.miningBlock} lstate={null} />
+              <BlockView hash={null} block={this.state.miningBlock} lstate={this.state.topLState} />
             </Paper>
           </Box>
         </TabPanel>
@@ -632,7 +613,7 @@ class App extends React.Component {
               />
             </Paper>
             <Paper elevation={4}>
-              <BlockView hash={this.state.tvSelected} block={this.state.tvBlock} />
+              <BlockView hash={this.state.tvSelected} block={this.state.tvBlock} lstate={this.state.tvLState} />
             </Paper>
             <Paper elevation={4}>
               <BalanceSummary lstate={this.state.tvLState} />

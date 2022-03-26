@@ -4,8 +4,11 @@ import React, { useState } from 'react';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 
+import AccountBalanceRoundedIcon from '@mui/icons-material/AccountBalanceRounded';
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
 import NavigateNextRoundedIcon from '@mui/icons-material/NavigateNextRounded';
+
+import { Emoji } from 'emoji-mart';
 
 import {
     RealBadCoinTransfer,
@@ -36,7 +39,7 @@ function BlockReward(props) {
 }
 
 function TransactionEvent(props) {
-    const {txId, delta, cache, onClick} = props;
+    const {txId, delta, lstate, cache, onClick} = props;
     const [blockHash, setBlockHash] = React.useState(null);
     const [tx, setTx] = React.useState(null);
     const [grabbingTx, setGrabbingTx] = React.useState(false);
@@ -73,6 +76,7 @@ function TransactionEvent(props) {
                     cursor: "pointer",
                 }}
             >
+                <AccountBalanceRoundedIcon />
                 <Typography noWrap variant="hexblob">{tx.source}</Typography>
                 <NavigateNextRoundedIcon />
                 <Typography noWrap variant="hexblob">{tx.txData.destination}</Typography>
@@ -81,10 +85,46 @@ function TransactionEvent(props) {
         );
     }
     else if (tx.txData instanceof RealBadNftMint) {
-        <Typography noWrap>TODO: Implement NFT Mint ledger view</Typography>
+        return (
+            <Stack
+                direction="row"
+                spacing={1}
+                onClick={()=>onClick(blockHash)}
+                sx={{
+                    cursor: "pointer",
+                }}
+                justifyContent="space-between"
+            >
+                <Emoji
+                    size={24}
+                    emoji={tx.txData.nftData.emoji}
+                />
+                <Typography noWrap variant="hexblob">{tx.txData.nftId}</Typography>
+                <Typography whiteSpace="nowrap">{"\u211C " + delta.toString()}</Typography>
+            </Stack>
+        );
     }
     else if (tx.txData instanceof RealBadNftTransfer) {
-        <Typography noWrap>TODO: Implement NFT Transfer ledger view</Typography>
+        return (
+            <Stack
+                direction="row"
+                spacing={1}
+                justifyContent="space-between"
+                onClick={()=>onClick(blockHash)}
+                sx={{
+                    cursor: "pointer",
+                }}
+            >
+                <Emoji
+                    size={24}
+                    emoji={lstate.nftPayloads[tx.txData.nftId].emoji}
+                />
+                <Typography noWrap variant="hexblob">{tx.source}</Typography>
+                <NavigateNextRoundedIcon />
+                <Typography noWrap variant="hexblob">{tx.txData.destination}</Typography>
+                <Typography whiteSpace="nowrap">{"\u211C " + delta.toString()}</Typography>
+            </Stack>
+        );
     }
     else return null;
 }
@@ -118,8 +158,9 @@ export default function AccountLedger(props) {
                         key={l.txId}
                         txId={l.txId}
                         delta={l.delta}
-                        onClick={onClick}
+                        lstate={lstate}
                         cache={cache}
+                        onClick={onClick}
                     />
                 );
             }).reverse()

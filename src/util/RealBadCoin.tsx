@@ -113,7 +113,6 @@ export class RealBadNftMint {
 export class RealBadNftTransfer {
     type = "nft_transfer";
     nftId = null;       // The ID (hash) of the NFT. Must already be minted before it can be transferred.
-    nftNonce = 0;       // Incrementing number specifying transfer count for this NFT. Must be sequentually incrementing or the transaction will be ignored.
     destination = null; // Destination account ID (public key) for the new owner of the NFT.
 
     // Accept an object and attempt to convert it into an object of this type.
@@ -122,7 +121,6 @@ export class RealBadNftTransfer {
     static coerce({
         type,
         nftId,
-        nftNonce,
         destination,
     }) {
         try {
@@ -131,7 +129,6 @@ export class RealBadNftTransfer {
             let r = new RealBadNftTransfer();
             r.type = type;
             r.nftId = nftId;
-            r.nftNonce = nftNonce;
             r.destination = destination;
             return r;
         } catch {
@@ -144,9 +141,6 @@ export class RealBadNftTransfer {
         try {
             return (
                 this.type === "nft_transfer" &&
-
-                // The NFT nonce is an integer
-                Number.isInteger(this.nftNonce) &&
 
                 // The NFT ID is a 32-byte hex value
                 (hexToBytes(this.nftId).length === 32) &&
