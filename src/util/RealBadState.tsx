@@ -338,6 +338,10 @@ export class RealBadLedgerState {
         // Check if they tried hard enough
         if (block.difficulty < this.nextBlockDifficulty) s.errors.push(new RealBadInvalidBlock("Block's target difficulty is too low", hash));
 
+        // Check if we approve of the mining reward.
+        // TODO: Make something cooler than a hard-coded fixed limit!
+        if (block.miningReward > 100) s.errors.push(new RealBadInvalidBlock("Block reward is too high!", hash));
+
         // Re-target the difficulty based on how long this last block took to harvest
         // This uses a long-running "leaky integrator" IIR filter to low-pass filter the block gaps
         // until we reach an equilibrium. But everybody can easily compute the next result based only on
