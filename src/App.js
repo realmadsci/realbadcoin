@@ -106,6 +106,7 @@ class App extends React.Component {
     // Pull out our previous setting for minimum Tx fee that we will accept
     const minimumTxFee = Number(sessionStorage.getItem("tx_fee") ?? 1000);
     this.setState({minimumTxFee: minimumTxFee});
+    this.state.cache.setMinTxFee(minimumTxFee);
   }
 
   async handleNewPeer(peer) {
