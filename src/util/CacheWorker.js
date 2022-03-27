@@ -9,7 +9,8 @@ import {
 
 import {
     RealBadCache,
-    RealBadLedgerState
+    RealBadLedgerState,
+    RealBadInvalidBlock,
 } from './RealBadState.tsx';
 
 class CacheWorker {
@@ -97,25 +98,58 @@ class CacheWorker {
         return this.#cache.getTxPool();
     }
 
+    setMinTxFee(fee) {
+        this.#cache.setMinTxFee(fee);
+    }
+
     makeMineableBlock(reward, destination) {
         return this.#cache.makeMineableBlock(reward, destination);
     }
 
     // Reject a transaction so you can attempt to undo it.
-    // This will replace the cache with a new copy and re-compute all the state,
-    // rejecting this transaction _every time_ it appears.
-    async cancelTransaction(txIdToReject = null) {
-        // Take a ref to the old cache so we can copy everything out of it
-        const oldCache = this.#cache;
-
-        // Make a new cache copy and tell it to reject the transaction in question
-        this.#cache = new RealBadCache(oldCache.myAccount);
+    // This will pick the block _above_ this transaction as the new root, and re-compute
+    // all the state above that point, rejecting this transaction _every time_ it appears.
+    cancelTransaction(txIdToReject = null) {
+        // Keep track so we never accept this transaction again!
         this.#cache.txIdToReject = txIdToReject;
 
-        // Transfer the old blockchain into the new cache
-        const oldBlocks = oldCache.getChain().map(h=>this.#cache.getBlock(h));
-        for(const b of oldBlocks) {
-            await this.#cache.addBlock(b);
+        // Find all blocks with this transaction
+        const blockHashes = this.#cache.getBlocksWithTransaction(txIdToReject);
+
+        // Mark them and all their children as being error blocks
+        for (const hash of blockHashes) {
+            const error = new RealBadInvalidBlock("Block contains banned transaction!", hash);
+            const state = this.#cache.getState(hash);
+            let childHashes = [];
+            if (state) {
+                state.errors.push(error);
+                childHashes.push(state.children);
+            }
+
+            while (childHashes.length) {
+                const ch = childHashes.shift();
+                const state = this.#cache.getState(ch);
+                if (state) {
+                    state.errors.push(error);
+                    childHashes.push(state.children);
+                }
+            }
+        }
+
+        // Now find which remaining block in the cache has the highest difficulty ranking.
+        // It's _probably_ one of the parents of the recently-burned blocks, but
+        // we're going to just brute force it anyway.
+        this.#cache._bestBlock = null;
+        for (const h of Object.keys(this.#cache._blocks)) {
+            let thisState = this.#cache.getState(h);
+            if (thisState?.errors?.length === 0) {
+                let bestState = this.#cache.getState(this.#cache._bestBlock);
+                if ((bestState === null) ||
+                    (thisState.totalDifficulty > bestState.totalDifficulty)
+                ) {
+                    this.#cache._bestBlock = h;
+                }
+            }
         }
     }
 }

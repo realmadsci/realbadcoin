@@ -1,11 +1,14 @@
 import * as React from 'react';
 
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Paper from '@mui/material/Paper';
+import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
 import TabContext from '@mui/lab/TabContext';
 import TabList from '@mui/lab/TabList';
 import TabPanel from '@mui/lab/TabPanel';
+import TextField from '@mui/material/TextField';
 
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
@@ -22,6 +25,7 @@ import { ConnectionManager, PeerApp } from './ConnectionManager';
 import TreeView from './TreeView';
 import PendingView from './PendingView';
 import HashDemo from './HashDemo';
+import { moneyPrefix, CancelTransactionDialog } from './TransactionDialog';
 
 // For the MineWorker:
 import * as Comlink from 'comlink';
@@ -53,6 +57,8 @@ class App extends React.Component {
       accountSelected: null,
       accountLState: null,
       txPool: {},
+      showCancelTxDialog: false,
+      minimumTxFee: 1000,
       miningBlock: null,
       cache: null,
       newBlockCounter: 0,
@@ -96,6 +102,10 @@ class App extends React.Component {
         this.updateTxPool();
       }
     };
+
+    // Pull out our previous setting for minimum Tx fee that we will accept
+    const minimumTxFee = Number(sessionStorage.getItem("tx_fee") ?? 1000);
+    this.setState({minimumTxFee: minimumTxFee});
   }
 
   async handleNewPeer(peer) {
@@ -635,10 +645,61 @@ class App extends React.Component {
             minWidth: 350,
           }}>
             <Paper elevation={4}>
-              <HashDemo />
+              <Stack
+                component="form"
+                autoComplete="off"
+                spacing={2}
+                sx={{p:2}}
+              >
+                <TextField
+                  label="Minimum Transaction Fee"
+                  type="number"
+                  InputProps={moneyPrefix}
+                  value={this.state.minimumTxFee}
+                  onChange={e => {
+                    const fee = e.target.value;
+                    this.setState({minimumTxFee: fee});
+                    try {
+                      const numFee = Number(fee);
+                      if (numFee >= 0) {
+                        this.state.cache.setMinTxFee(numFee);
+                        sessionStorage.setItem("tx_fee", numFee.toString());
+                      }
+                    }
+                    catch {}
+                  }}
+                />
+              </Stack>
+            </Paper>
+            <Paper elevation={4}>
+              <Stack
+                sx={{
+                  p: 2,
+                }}
+              >
+                <Button
+                  onClick={()=>this.setState({showCancelTxDialog: true})}
+                  variant="outlined"
+                  color="error"
+                >
+                  DO NOT PRESS
+                </Button>
+                <CancelTransactionDialog
+                  open={this.state.showCancelTxDialog}
+                  onClose={()=>this.setState({showCancelTxDialog: false})}
+                  doReject={async (txId)=>{
+                    console.log("Nuke " + txId);
+                    await this.state.cache.cancelTransaction(txId);
+                    await this.cacheHasNewBlock(await this.state.cache.bestBlockHash);
+                  }}
+                />
+              </Stack>
             </Paper>
             <Paper elevation={4}>
               <BlockView hash={null} block={this.state.miningBlock} lstate={this.state.topLState} />
+            </Paper>
+            <Paper elevation={4}>
+              <HashDemo />
             </Paper>
           </Box>
         </TabPanel>

@@ -391,6 +391,7 @@ export class RealBadCache {
     _anticipatedBlocks = {};    // Key/value pairs with key as "prevHash" for blocks that don't exist in our cache yet, and value as a list of blocks waiting on them to arrive.
     _readyBlocks = [];          // List of hashes of blocks that are marked as "ready for processing state". They are pulled from _anticipatedBlocks once their ancestor is done processing.
     _bestBlock = null;          // Hash of the top-scoring block (i.e. the one with the deepest block chain "strength")
+    _minTxFee = 0;              // Minimum transaction fee for transactions to be include by makeMineableBlock()
     _txPool = {};               // Pool of un-confirmed transactions that we can try add to a block.
     _recentConfirmedTx = {};    // Pool of recently confirmed transactions so we can avoid repeating them.
     _txToBlocks = {};           // Pool of transactions with list of blocks that they are in (yes, a Tx can be in more than one block, but only one per chain!)
@@ -664,6 +665,7 @@ export class RealBadCache {
                 // Also quit early if we already have this one!
                 && !(tx.txId in this._txPool)
                 && !(tx.txId in this._recentConfirmedTx)
+                && !(tx.txId === this.txIdToReject)
             ) {
                 // This is a new transaction that we haven't seen recently!
                 this._txPool[tx.txId] = tx;
@@ -678,6 +680,11 @@ export class RealBadCache {
     // Get the pool of transactions that are eligible for mining
     getTxPool() {
         return this._txPool;
+    }
+
+    // Set the minimum transaction fee that we will accept and mine into a block
+    setMinTxFee(fee) {
+        this._minTxFee = fee;
     }
 
     // Create the next block for mining, based on the best known block plus
@@ -701,7 +708,6 @@ export class RealBadCache {
             removedBlocks.forEach(h=>{
                 let b = this.getBlock(h);
                 b.transactions.forEach(t=>{
-                    // Add them to txPool
                     // NOTE: This can cause really really old transactions to reenter the pool. :shrug:
                     this._txPool[t.txId] = t;
 
@@ -749,11 +755,24 @@ export class RealBadCache {
         const minTimestampMs = Number(lastBlock?.timestamp ?? Date.now()) + 1;
         b.timestamp = new Date(Math.max(minTimestampMs, Date.now()));
 
+        // Delete any transactions from the pool that are too old
+        for (const txId of Object.keys(this._txPool)) {
+            const t = this._txPool[txId];
+            if ((t.timestamp > new Date(Date.now() + 5*60*1000))
+                || (Date.now() - t.timestamp > 5*60*1000)
+                // Or if they are rejected!
+                || (txId === this.txIdToReject)
+            ) {
+                delete this._txPool[t.txId];
+            }
+        }
+
         // Try and add as many transactions to the block as will create a valid state
         let s = lastBlockState.clone();
         let poolCopy = [];
         for (const txId in this._txPool) {
-            poolCopy.push(txId);
+            // Ignore the cheapskates and only consider transactions that meet our minimum transaction fee level
+            if (this._txPool[txId].transactionFee >= this._minTxFee) poolCopy.push(txId);
         }
 
         // Special case to modify the "state" that we are trying transactions on:

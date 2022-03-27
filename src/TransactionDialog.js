@@ -13,6 +13,7 @@ import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
+import RestoreRoundedIcon from '@mui/icons-material/RestoreRounded';
 
 import './emoji-mart.css';
 import { Emoji, Picker } from 'emoji-mart';
@@ -70,7 +71,7 @@ const validateDest = (dest)=>{
     return false;
 }
 
-const moneyPrefix = {
+export const moneyPrefix = {
     startAdornment: (
         <InputAdornment position="start">
         {"\u211C"}
@@ -430,6 +431,83 @@ export function TransferNftDialog(props) {
             <DialogActions>
                 <Button onClick={onClose}>Cancel</Button>
                 <Button onClick={handleSubmit}>Submit</Button>
+            </DialogActions>
+            </>
+        )}
+        </Dialog>
+    );
+}
+
+export function CancelTransactionDialog(props) {
+    /* Expected props:
+    open    - Whether the dialog is "open" or not
+    onClose - Callback when dialog is closed
+    doReject- Callback to ban a transaction. Argument is txId of the transaction to ban.
+    */
+    const { open, onClose, doReject } = props;
+
+    const [error, setError] = React.useState("");
+    const [txId, setTxId] = React.useState("");
+
+    const handleSubmit = async()=>{
+        // Pre-check of transaction fields to rule out obvious nonsense and give good error messages.
+        // NOTE: Check in order of the fields so we give the error for the FIRST thing that they got wrong in the top-down order.
+        if (!validateDest(txId)) {
+            setError("Transaction ID must be a 32-byte hex number (64 characters)");
+            return;
+        }
+
+        await doReject(txId.toLowerCase());
+        onClose();
+    };
+
+    // Flip to full screen if we can't get at least "sm" width:
+    const theme = useTheme();
+    const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
+
+    return (
+        <Dialog
+            open={open}
+            onClose={onClose}
+            fullScreen={fullScreen}
+            maxWidth="md"
+            scroll="body"
+            fullWidth={true}
+        >
+        { error ? (
+            <DisplayInvalidTransaction
+                header="Modify History Failed"
+                message={error}
+                onBack={()=>setError("")}
+            />
+        ) : (
+            <>
+            <DialogTitle>
+                Modify History
+            </DialogTitle>
+            <DialogContent>
+            <Stack
+                component="form"
+                autoComplete="off"
+                spacing={2}
+                sx={{p:2}}
+            >
+                <TextField
+                    label="Transaction ID to Cancel"
+                    value={txId}
+                    onChange={e => setTxId(e.target.value)}
+                />
+            </Stack>
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={onClose}>Cancel</Button>
+                <Button
+                    onClick={handleSubmit}
+                    endIcon={<RestoreRoundedIcon />}
+                    color="error"
+                >
+                    erase
+                </Button>
             </DialogActions>
             </>
         )}
