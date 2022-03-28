@@ -2,7 +2,10 @@
 import React, { useState } from 'react';
 
 import Divider from '@mui/material/Divider';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Pagination from '@mui/material/Pagination';
 import Stack from '@mui/material/Stack';
+import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
 
 import AccountBalanceRoundedIcon from '@mui/icons-material/AccountBalanceRounded';
@@ -133,6 +136,11 @@ function TransactionEvent(props) {
 export default function AccountLedger(props) {
     const {cache, lstate, topLState, onClick} = props;
 
+    // Split the ledger into pages so we don't wreck the rendering speed!
+    const [itemsPerPage, setItemsPerPage] = useState(20);
+    const [page, setPage] = useState(1);
+    const [showBlocks, setShowBlocks] = useState(true);
+
     // No valid state yet, so return "nothing"
     if (!lstate?.accountLedger) return null;
 
@@ -143,6 +151,22 @@ export default function AccountLedger(props) {
         mined = topLState.accountLedger.filter(l=>
             !lstate.accountLedger.find(q=>(l.txId === q.txId)));
     }
+
+    // Figure out which items to show on what page
+    // First strip out blocks if we are hiding them:
+    const ledgerItems = showBlocks ? lstate.accountLedger : lstate.accountLedger.filter(l=>!("block" in l));
+
+    // The pages start at the "oldest" data so that they don't change their "shape" constantly.
+    // The highest page shows up to twice as much info before it "flips" - i.e. we don't show a page smaller than itemsPerPage.
+    const numPages = Math.max(1, Math.floor(ledgerItems.length / itemsPerPage));
+    console.log("numItems = " + ledgerItems.length.toString() + ", numPages = " + numPages.toString());
+
+    // Page numbers are "flipped" for sanity purposes. Also make it 0-based indexing.
+    const effPage = numPages - page;
+    const pageStart = effPage * itemsPerPage;
+    const pageEnd = (effPage === (numPages - 1)) ? ledgerItems.length : ((effPage + 1) * itemsPerPage);
+    console.log("pageStart = " + pageStart.toString() + ", pageEnd = " + pageEnd.toString());
+    const ledgerPage = ledgerItems.slice(pageStart, pageEnd);
 
     return (
         <Stack
@@ -182,7 +206,7 @@ export default function AccountLedger(props) {
         <Typography variant="h5">Confirmed</Typography>
         <Divider />
         {
-            lstate.accountLedger.map(l=>{
+            ledgerPage.map(l=>{
                 if ("block" in l) return (
                     <BlockReward
                         key={l.block}
@@ -203,6 +227,35 @@ export default function AccountLedger(props) {
                 );
             }).reverse()
         }
+        { (numPages <= 1) && showBlocks ? null : (
+            <Stack
+                direction="row"
+                spacing={1}
+                sx={{p:0}}
+            >
+                <Divider />
+                <Pagination
+                    sx={{
+                        flexGrow: 1
+                    }}
+                    count={numPages}
+                    page={page}
+                    onChange={(e, v)=>setPage(v)}
+                    color="primary"
+                    showFirstButton
+                    showLastButton
+                />
+                <FormControlLabel
+                    label="Show Blocks"
+                    control={
+                        <Switch defaultChecked checked={showBlocks} onChange={e=>{
+                            setShowBlocks(e.target.checked);
+                            setPage(1);
+                        }} />
+                    }
+                />
+            </Stack>
+        )}
         </Stack>
     );
 }
