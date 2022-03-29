@@ -115,6 +115,16 @@ function BlockView(props) {
                         </ListItem>
                     ) : null
                 }
+                {
+                    sealed && props.lstate ? (
+                        <ListItem>
+                        <ListItemText
+                            primary="Chain Total Difficulty Metric"
+                            secondary={props.lstate.totalDifficulty.toString()}
+                        />
+                        </ListItem>
+                    ) : null
+                }
                 </List>
             </AccordionDetails>
         </Accordion>
