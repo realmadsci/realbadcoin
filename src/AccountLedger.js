@@ -159,13 +159,13 @@ export default function AccountLedger(props) {
     // The pages start at the "oldest" data so that they don't change their "shape" constantly.
     // The highest page shows up to twice as much info before it "flips" - i.e. we don't show a page smaller than itemsPerPage.
     const numPages = Math.max(1, Math.floor(ledgerItems.length / itemsPerPage));
-    console.log("numItems = " + ledgerItems.length.toString() + ", numPages = " + numPages.toString());
+    //console.log("numItems = " + ledgerItems.length.toString() + ", numPages = " + numPages.toString());
 
     // Page numbers are "flipped" for sanity purposes. Also make it 0-based indexing.
     const effPage = numPages - page;
     const pageStart = effPage * itemsPerPage;
     const pageEnd = (effPage === (numPages - 1)) ? ledgerItems.length : ((effPage + 1) * itemsPerPage);
-    console.log("pageStart = " + pageStart.toString() + ", pageEnd = " + pageEnd.toString());
+    //console.log("pageStart = " + pageStart.toString() + ", pageEnd = " + pageEnd.toString());
     const ledgerPage = ledgerItems.slice(pageStart, pageEnd);
 
     return (
@@ -248,7 +248,7 @@ export default function AccountLedger(props) {
                 <FormControlLabel
                     label="Show Blocks"
                     control={
-                        <Switch defaultChecked checked={showBlocks} onChange={e=>{
+                        <Switch checked={showBlocks} onChange={e=>{
                             setShowBlocks(e.target.checked);
                             setPage(1);
                         }} />
