@@ -205,6 +205,13 @@ export default function TransactionView(props) {
             />
         </ListItem>
         {renderTxData(tx.txData)}
+        <ListItem>
+            <ListItemText
+                primary="Source Signature"
+                secondary={tx.signature}
+                secondaryTypographyProps={{variant: "hexblob"}}
+            />
+        </ListItem>
         </List>
     );
 }
