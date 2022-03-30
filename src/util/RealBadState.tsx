@@ -403,7 +403,7 @@ export class RealBadCache {
     _lastMiningRoot = null;     // This is the last block we attempted to mine on top of.
     _isCheckpoint = false;      // Are we building from a checkpoint, or have we validated the checkpoint block?
     minDifficulty = 256**2;     // Minimum difficulty level of blocks to allow into our cache.
-    genesisDifficulty = 2e6;    // Difficulty of genesis blocks
+    genesisDifficulty = 6e6;    // Difficulty of genesis blocks
     myAccount = null;           // What account is being used for state tracking ("Tx History")
     txIdToReject = null;        // A transaction to reject so we can try and delete it from the block chain
 
