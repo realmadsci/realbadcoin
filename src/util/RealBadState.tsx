@@ -370,6 +370,9 @@ export class RealBadLedgerState {
             s.errors.push(error);
         }
 
+        // Keep a maximum of 100 errors per block!
+        s.errors = s.errors.slice(-100);
+
         // If successful, pay the mining rewards, including the sum of transactionFees from all transactions.
         if (!(block.rewardDestination in s.accounts)) s.accounts[block.rewardDestination] = new RealBadAccountState();
         s.accounts[block.rewardDestination].balance += block.miningReward + s.transactionFees;
@@ -378,7 +381,9 @@ export class RealBadLedgerState {
         // Clear out transaction fees now that they are claimed
         s.transactionFees = 0;
 
-        if (s.errors.length) console.error("Errors in block " + block.blockHeight + ": " + JSON.stringify(s.errors));
+        // Only show the last 3 errors in a block to avoid mega-spamming the console.
+        // Also only showing as "warning" to prevent showing stack traces on each one.
+        if (s.errors.length) console.warn(s.errors.length.toString() + " errors in block " + block.blockHeight + ". Last 3: " + JSON.stringify(s.errors.slice(-3)));
 
         return s;
     }
