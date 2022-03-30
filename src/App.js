@@ -647,8 +647,6 @@ class App extends React.Component {
           }}>
             <Paper elevation={4}>
               <Stack
-                component="form"
-                autoComplete="off"
                 spacing={2}
                 sx={{p:2}}
               >

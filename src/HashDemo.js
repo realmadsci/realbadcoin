@@ -37,8 +37,6 @@ export class HashDemo extends React.Component {
     render() {
         return (
             <Stack
-                component="form"
-                autoComplete="off"
                 spacing={2}
                 sx={{p:2}}
             >

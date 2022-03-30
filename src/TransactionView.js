@@ -55,7 +55,7 @@ export default function TransactionView(props) {
             );
         }
         else if (d instanceof RealBadNftTransfer) {
-            const emoji = lstate.nftPayloads[tx.txData.nftId]?.emoji;
+            const emoji = lstate?.nftPayloads[tx.txData.nftId]?.emoji;
             if (!emoji) return null;
             return (
                 <Stack

@@ -21,7 +21,7 @@ export default function PendingView(props) {
     */
     const {lstate, txPool} = props;
 
-    if (!lstate || !txPool) return null;
+    if (!txPool) return null;
 
     let transactions = Object.values(txPool);
 

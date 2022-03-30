@@ -151,8 +151,6 @@ export function CoinTransferDialog(props) {
             </DialogTitle>
             <DialogContent>
             <Stack
-                component="form"
-                autoComplete="off"
                 spacing={2}
                 sx={{p:2}}
             >
@@ -226,7 +224,7 @@ export function MintNftDialog(props) {
         nft.nftId = nft.hash();
 
         // See if the NFT is already "minted". We can't do it again!
-        if (nft.nftId in lstate.nfts) {
+        if (lstate && nft.nftId in lstate.nfts) {
             setError("This NFT is already claimed!");
             return;
         }
@@ -272,8 +270,6 @@ export function MintNftDialog(props) {
             </DialogTitle>
             <DialogContent>
                 <Stack
-                    component="form"
-                    autoComplete="off"
                     spacing={2}
                     sx={{
                         p:2,
@@ -389,8 +385,6 @@ export function TransferNftDialog(props) {
             </DialogTitle>
             <DialogContent>
             <Stack
-                component="form"
-                autoComplete="off"
                 spacing={2}
                 sx={{p:2}}
             >
@@ -487,8 +481,6 @@ export function CancelTransactionDialog(props) {
             </DialogTitle>
             <DialogContent>
             <Stack
-                component="form"
-                autoComplete="off"
                 spacing={2}
                 sx={{p:2}}
             >
