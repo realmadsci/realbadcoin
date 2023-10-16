@@ -93,23 +93,10 @@ export class ConnectionManager {
 
         this._notifyStatusChange("connecting");
 
-        //https://anseki.github.io/gnirts/
-        const a = (388).toString(36).toLowerCase() + (function () { var Z = Array.prototype.slice.call(arguments), H = Z.shift(); return Z.reverse().map(function (Q, P) { return String.fromCharCode(Q - H - 7 - P) }).join('') })(29, 140, 147, 144, 144) + (28210).toString(36).toLowerCase() + (1203767).toString(36).toLowerCase().split('').map(function (r) { return String.fromCharCode(r.charCodeAt() + (-39)) }).join('') + (596).toString(36).toLowerCase() + (function () { var o = Array.prototype.slice.call(arguments), i = o.shift(); return o.reverse().map(function (L, H) { return String.fromCharCode(L - i - 38 - H) }).join('') })(0, 101, 104, 101, 99, 97, 151, 149, 151, 151, 157, 154, 147, 147) + (7482579).toString(36).toLowerCase() + (function () { var L = Array.prototype.slice.call(arguments), w = L.shift(); return L.reverse().map(function (c, N) { return String.fromCharCode(c - w - 39 - N) }).join('') })(4, 153, 146);
-        this.myId = sessionStorage.getItem("peer_id") || generateSlug(2).replace("-", "_");
+        this.myId = sessionStorage.getItem("peer_id") || ("realbadcoin_" + generateSlug(2).replace("-", "_"));
         this.peerHistory = JSON.parse(localStorage.getItem("peer_history") ?? sessionStorage.getItem("peer_history") ?? "[]");
-        this.server = new Peer(this.myId, {
-            host: 'coinpeers.realmadsci.com',
-            port: 8080,
-            path: '/',
-            secure: true,
-            //debug: 3,
-            config: {
-                'iceServers': [
-                    { url: 'stun:coinpeers.realmadsci.com' },
-                    { url: 'turn:coinpeers.realmadsci.com', username: 'coin', credential: a }
-                ]
-            }
-        });
+        // Use the default PeerJS cloud server for brokering connections, but prepend "realbadcoin" to the names to avoid collisions
+        this.server = new Peer(this.myId);
 
         // If it failed, try again in a little bit
         this.server.on('disconnected', this._serverDisconnectCallback);
@@ -117,9 +104,7 @@ export class ConnectionManager {
         // If it works, then we keep track of the connection!
         this.server.on('open', (id) => {
             this._notifyStatusChange("connected");
-
-            this.myId = id; // This *should* already match, but just in case...
-            sessionStorage.setItem("peer_id", id);
+            sessionStorage.setItem("peer_id", this.myId);
 
             // Now try and pull in our old friends!
             this.peerHistory.forEach(p=>{this.connectToPeer(p);});
@@ -312,7 +297,7 @@ export class PeerApp extends React.Component {
     }
 
     _tryConnectPeer() {
-        this._conn.connectToPeer(this.state.friendId);
+        this._conn.connectToPeer("realbadcoin_" + this.state.friendId);
     }
 
     componentDidMount() {
@@ -340,7 +325,7 @@ export class PeerApp extends React.Component {
                         </ListItemIcon>
                         <ListItemText
                             primary="Network ID"
-                            secondary={this.state.myId}
+                            secondary={String(this.state.myId).replace("realbadcoin_","")}
                         />
                     </ListItem>
                 </List>
@@ -372,7 +357,7 @@ export class PeerApp extends React.Component {
                             return (
                             <Chip
                                 key={p.id}
-                                label={p.id}
+                                label={String(p.id).replace("realbadcoin_","")}
                                 onClick={(p.state === "connected") ? undefined : ()=>{
                                     this._conn.connectToPeer(p.id);
                                 }}
